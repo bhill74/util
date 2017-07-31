@@ -1,0 +1,9 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/public_html/php
+for FILE in `ls *.php | grep -v test.php`; do
+   install_file $HOME/public_html/php $FILE 
+done

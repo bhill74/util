@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -a
+if [ ! -z "$1" ]; then
+    HOME=$1
+fi
+HOMEWWW=$HOME/public_html
+
+BASE=`pwd`
+
+source functions
+
+# OLD directories.
+clear $HOME/aliases
+clear $HOME/functions
+
+clear $HOME/al
+clear $HOME/bin
+clear $HOME/perl 
+clear $HOME/php
+clear $HOME/csh
+clear $HOME/bash
+clear $HOME/tcl
+clear $HOME/lib
+clear $HOME/util
+
+clear $HOMEWWW/php
+clear $HOMEWWW/js
+
+for dist in `find . -depth -name TMP -prune -o -name distfiles | grep -v TMP | perl sortpaths.pl`
+do
+    directory=`echo $dist | sed -e "s,/[^/]*$,,"`
+    echo "Installing $directory"
+    cd $directory
+    ./distfiles
+    cd $BASE
+done

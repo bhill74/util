@@ -1,0 +1,330 @@
+#!/bin/bash
+
+# ----------------------------------------
+# ---- Session Settings
+# Collect information about the current
+# session and environment.
+site=$(/usr/local/bin/siteid)
+host=$(hostname | cut -f1 -d.)
+sh=$(ypcat -k passwd | grep " ${USER}:" | cut -f7 -d:)
+if [ ! -z "$SGE_DEFAULT_SHELL" ]; then
+    sh=$SGE_DEFAULT_SHELL
+fi
+
+# ----------------------------------------
+# ---- Command Line Arguments
+# Process the command line arguments
+full_args() {
+    value=$1
+    arg=$2
+    va=$value,$(${HOME}/util/options/options -c qterm -a $2 | tr "\\n" ,)   
+    ${HOME}/util/util/join -delim , -trim "$va"
+}
+
+search() {
+   local i
+   local l=("${@:2}")
+   for ((i=0; i < ${#l[@]}; ++i)); do
+      if [ "$1" == "${l[$i]}" ]; then
+         echo $i
+	  return
+      fi
+   done
+   echo -1
+}
+
+softi=$(search -soft "${@}")
+hard=("${@}")
+soft=()
+
+if [ ! -z "$softi" ] && [[ $softi -ge 0 ]]; then
+   echo "Switching"
+   softi=$(($softi+1))
+   len="${#@}"
+   hard=("${@:0:$softi}")
+   soft=("${@:$softi:$len}")
+fi
+
+title=''
+project=''
+rsite=''
+verbose=0
+sendenv=''
+display=
+eval $(${HOME}/util/options/getopts "l=s@" -sh "${soft[@]}")
+soft_resource=$l
+soft_arg=$_arg_
+
+eval $(${HOME}/util/options/getopts "qterm@project|P=s:l=s@:title|T=s:rsite=s:verbose|V|v!:sendenv=s@:display=s:cell|C=s:sh|S=s" -sh "${hard[@]}")
+hard_resource=$l
+hard_arg=$_arg_
+
+# ----------------------------------------
+# ---- SunGrid
+# Access the appropriate SunGrid
+
+. ${HOME}/util/sge/env.sh
+qenv "$cell" $verbose
+if [ ! -z "$soft_resource" ]; then
+   soft_resource=$(${HOME}/util/sge/p_resources -l ${soft_resource//:/ -l })
+fi
+if [ ! -z "$hard_resource" ]; then
+   hard_resource=$(${HOME}/util/sge/p_resources -l ${hard_resource//:/ -l })
+fi
+project=$(${HOME}/util/sge/p_project -P ${project} ${hard_resource//\'/})
+
+# ----------------------------------------
+# ---- Display
+# Make sure the display is in use.
+
+if [ -z "$display" ]; then
+   display=$(${HOME}/util/remote/display)
+fi
+
+# ----------------------------------------
+# ---- Title
+# Derive the title if necessary./
+
+if [ -z "$title" ]; then    
+    title="Term window for $(ypcat passwd | grep ${USER}: | cut -f5 -d:) (${USER})"
+fi
+
+sendenv=$(full_args $SGE_TERM_SENDENV,${sendenv//:/,} sendenv)
+
+rsite=$(echo $rsite | tr '[:upper:]' '[:lower:]')
+prefer=$(full_args "$SGE_TERM_PREFER" prefer)
+avoid=$(full_args "$SGE_TERM_AVOID" avoid)
+
+# ----------------------------------------
+# ---- Export Variables
+venv() {
+    sh=$1
+    vars=$(echo $2 | sed "s/,/ /g")
+    
+    output=''
+    case $sh in
+	/bin/bash|/bin/sh)
+            for var in $vars; do
+		if [ -z "$var" ]; then
+		    next
+		fi
+		output="$output;export $var='${!var}'"
+	    done
+	    ;;	  
+	/bin/csh|/bin/tcsh)
+	    for var in $vars; do
+		if [ -z "$var" ]; then
+		    next
+		fi
+		output="$output;setenv $var '${!var}'"
+	    done
+	    ;;
+     esac
+     echo ${output/;/}
+}
+
+# ----------------------------------------
+# ---- Remote Host
+
+if [ ! -z "$rsite" ] && [ "$rsite" != "$site" ]; then
+    rsiteUC=$(echo $rsite | tr '[:lower:]' '[:upper:]')
+    rhome=$(${HOME}/util/rfs/rfs $rsite resolve '~bhill')
+    var=${rsiteUC}_SGE_HOST
+    host=${!var}
+    if [ -z "$host" ]; then
+	echo "No host is known for ${rsiteUC}"
+	exit 1
+    fi
+    
+    cmd=$(venv "$sh" $sendenv)
+    cmd="$cmd;${rhome}/util/sge/qterm -P $project -display $display -title '$title' "
+    if [ $verbose -eq 1 ]; then
+	cmd="$cmd -verbose "
+    fi
+    if [ ! -z "$sendenv" ]; then
+	cmd="$cmd -sendenv $sendenv "
+    fi
+    if [ ! -z "$cell" ]; then
+	cmd="$cmd -cell $cell "
+    fi
+    cmd="$cmd ${_args_}"
+   
+    if [ $verbose -eq 1 ]; then
+	echo "$cmd [on $host]"
+    fi    
+    rsh $host $cmd
+    exit
+fi
+
+# ----------------------------------------
+# ---- Utility Functions
+# Useful utility functions for processing information
+
+#%FUNCTION: tmpName
+#%DESCRIPTION: Create the temporary file name.
+function tmpName {
+    echo /tmp/${1}.`date +%Y%m%d%H%M%S`.txt
+}
+
+# Define a function to determine the VALID hosts that are
+# available on the FARM.
+function validHosts {
+    res=${hard_resource//\'/} 
+    echo "P $project $res"
+    ${HOME}/util/sge/p_hosts -P ${project} ${res}
+}
+
+# If this window is already taking up a slot in the queue then
+# attempt to track down the appropriate machine for launching
+# another window without taking up another slot. Determine
+# the appropriate HOST and whether it is the SAME session.
+xhost=""
+same=0
+if [ ! -z "$RELATED_JOB_ID" ]; then
+   JOB_ID=$RELATED_JOB_ID
+fi
+
+if [ ! -z "$JOB_ID" ]; then  
+   if [ ! -z "$SGE_O_SHELL" ]; then
+      sh=$SGE_O_SHELL
+   fi
+
+   # Determine which hosts are applicable for this
+   # type of session.
+   valid_hosts_tmp=$(tmpName hosts)
+   validHosts > $valid_hosts_tmp
+   
+   # Collect all the interactive JOB ids.
+   id_tmp=$(tmpName ids)
+   ids=$JOB_ID
+   qstat -u $USER 2>&1 | grep INTERACTIV | grep -v $JOB_ID | cut -f2 -d' ' > $id_tmp
+   while read ID; do      
+      ids="$ids $ID"     
+   done < $id_tmp
+   rm -rf $id_tmp 2>/dev/null
+
+   # Find the appropriate job ID, starting with the current one.
+   for id in $ids; do
+       jproject=$(qstat -j $id 2>&1 | grep 'project:' | cut -f2 -d: | sed "s/ //g")
+       if [ "$project" != "$jproject" ]; then
+	   continue
+       fi
+              
+       if [ $JOB_ID = $id ]; then
+	   same=1
+	   xhost=$host
+       else 
+	   xhost=$(qstat -u $USER | grep $id | awk '{print $8}' | cut -f2 -d@ | cut -f1 -d.)
+       fi                  
+
+       valid_host=$(grep $xhost $valid_hosts_tmp)
+       if [ -z "${valid_host}" ]; then
+	   same=0
+	   xhost=''
+	   continue
+       fi
+      
+       JOB_ID=$id
+       break
+   done
+   
+   rm -rf $valid_hosts_tmp 2>/dev/null
+fi
+
+# If there are NO available hosts on the FARM or if
+# the preferred host is not part of the FARM then 
+# use an explicit xterm command.
+avail_hosts=$(validHosts 1)
+is_prefer_avail=1
+if [ ! -z "$prefer" ]; then
+    is_prefer_avail=$(qhost | egrep "(${prefer//,/|})" | wc | awk '{print $1}')
+fi
+
+if [ $is_prefer_avail == 0 ]; then
+    if [ $verbose -eq 1 ]; then
+	echo "Using desired SGE host directly (${prefer//,/ })"
+    fi
+    xhost=$(qhost | egrep "(${prefer//,/|})" | head -1)
+    JOB_ID=UNDEFINED
+else
+    if [ -z "$avail_hosts" ]; then
+	if [ $verbose -eq 1 ]; then
+	    echo "No available SunGrid hosts"
+	fi
+	
+	cmd=$(${HOME}/util/sge/p_machines ${hard_resources})
+	xhost=$(${cmd})
+	if [ -z "$xhost" ]; then
+	    echo "No known host could be found"
+	    exit
+	fi
+	
+	if [ $verbose -eq 1 ]; then
+	    echo "Using first non-SGE host ($xhost)"
+	fi
+
+	JOB_ID=UNDEFINED
+    fi
+fi
+
+# If we should be using the same SunGrid slot then
+# simply open an Xterm window.
+if [ ! -z "$xhost" ]; then
+    export RELATED_JOB_ID=$JOB_ID
+    if [ $same -eq 1 ]; then     
+	if [ $verbose -eq 1 ]; then
+	    echo "Using same SGE slot ($xhost:$JOB_ID)"
+	fi
+	unset JOB_ID
+	export SGE_CELL
+	xterm -ls -display $display -T "$title [C]" -e $sh &
+	exit
+    fi
+    
+    if [ $verbose -eq 1 ]; then
+	if [ "$JOB_ID" == "UNDEFINED" ]; then
+	    if [ "$xhost" == "$HOSTNAME" ]; then
+		echo "Using local machine ($xhost)"
+	    else 
+		echo "Using machine ($xhost)"
+	    fi
+	else
+	    echo "Using existing SGE slot ($xhost:$JOB_ID)"
+	fi
+    fi       
+    
+    cmd=$sh;$(venv "$sh" RELATED_JOB_ID);$(venv "$sh" $sendenv)
+    
+    if [ $verbose -eq 1 ]; then
+	echo $cmd
+    fi
+    
+    rsh $xhost "$cmd;xterm -ls -display ${display} -title '$title [C]' -e '$sh'" 2> /dev/null &
+    exit
+fi
+
+# Set up the SunGrid command.
+if [ ! -z "$prefer" ]; then
+    prefer="-l 'hostname=(${prefer//,/|})'"
+fi
+
+if [ ! -z "$avoid" ]; then
+    avoid="-l 'hostname=!(${avoid//,/|})'"
+fi
+
+if [[ ${_args_} =~ /-soft/ ]]; then
+    soft=${_args_//*-soft/}
+fi
+
+options="${hard_resource} ${hard_args} -soft ${prefer} ${avoid} ${soft_resource} ${soft_args}"
+
+if [ ! -z "$sendenv" ]; then
+    vars="-v "$(echo $sendenv | sed "s/,/ -v /g")
+fi
+qsh="qsh -S $sh $vars -display ${display} ${project} ${options} -- -T \"$title [M]\" -bd red -ms blue"
+
+if [ $verbose -eq 1 ]; then
+    echo $qsh
+fi
+
+eval $qsh

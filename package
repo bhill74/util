@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -a
+NAME=$1
+if [ -z "$NAME" ]; then
+    NAME=package
+fi
+
+BASE=`pwd`
+rm ${NAME}.tgz > /dev/null 2>&1
+rm ${NAME}.tar.gz > /dev/null 2>&1
+rm ${NAME}.tar > /dev/null 2>&1
+
+for dist in `find . -name TMP -prune -o -name distfiles | grep -v TMP`
+do
+    directory=`echo $dist | sed -e "s,/[^/]*$,,"`
+    echo "Packaging $directory"
+    tar uf ${NAME}.tar $directory
+done
+
+gzip ${NAME}.tar

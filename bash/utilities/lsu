@@ -1,0 +1,6 @@
+#!/bin/bash
+
+${HOME}/util/util/pathsu | while read line; do 
+	cd $line
+	ls $@ 2>/dev/null |  perl ~/P4workspace/perl/utilities/lsFilter.pl $line
+done

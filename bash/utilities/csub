@@ -1,0 +1,24 @@
+#!/bin/bash
+. ${HOME}/util/proces/process.sh
+process
+
+delay="next minute"
+while getopts "d:" opt
+do
+   case $opt in
+      d) delay=$OPTARG;;
+   esac
+done
+
+TFILE=`${CELLGEN}/bin/tmpname`
+
+crontab -l >> $TFILE 2>/dev/null
+echo >> $TFILE
+LINE=`date -d "$delay" +"%M %H %d %m %w"`
+LINE="$LINE $*"
+echo $LINE
+echo $LINE >> $TFILE
+
+crontab $TFILE
+
+rm -f $TFILE

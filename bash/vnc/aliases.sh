@@ -1,0 +1,6 @@
+alias vncremote='/usr/bin/vncserver -kill :2 > /dev/null 2>&1;sleep 5;/usr/bin/vncserver :2 -geometry 1600x1200 -depth 8'
+#alias vnclocal='/usr/bin/vncserver -kill :1 > /dev/null 2>&1;sleep 5;/usr/bin/vncserver :1 -geometry 2048x1536'
+alias vnclocal='/usr/bin/vncserver -kill :1 > /dev/null 2>&1;sleep 5;/usr/bin/vncserver :1 -geometry 1600x1200'
+alias vncdemo='export VNCDEMO=${HOST}:3;/usr/bin/vncserver -kill ${VNCDEMO} > /dev/null 2>&1;sleep 5;/usr/bin/vncserver ${VNCDEMO} -geometry 1000x1000'
+alias vncservers='vncremote;vnclocal;vncdemo'
+alias gnomereset='rm -r ~/.gnome;rm -r ~/.gconf-bhill;rm -r ~/.gconfd-bhill;rm -r ~/.gconf;rm -r ~/.gconfd'

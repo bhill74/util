@@ -1,0 +1,9 @@
+#!/opt/gnu/bin/bash
+set -a
+volume=20
+if [ $# = 2 ]; then
+   volume=$2
+fi
+audiocontrol > /dev/null 2>&1 &
+echo Clue number $1 at volume $volume
+audioplay -v $volume $HOME/TreasureHunt/clue$1

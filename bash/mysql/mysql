@@ -1,0 +1,10 @@
+#!/bin/bash
+
+MYSQL_HOME=/usr
+. ${HOME}/util/paths/settings.sh
+version=$(ls -d /depot/mysql-*/bin | sed "s|/depot/||" | sed "s|/bin||" | sort -t. -k 2,2n -k 3,3n -k 4,4n | tail -1)
+if [ ! -z "$version" ]; then
+    MYSQL_HOME=/depot/${version}
+fi
+path_prepend ${MYSQL_HOME}/bin
+${MYSQL_HOME}/bin/mysql $@

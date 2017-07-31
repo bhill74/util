@@ -1,0 +1,7 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+xrdb -query | sed -e '/^.foreground/d' -e '/^.background/d' -e '/^.Font:/d' > .Xdefaults.fixed
+xrdb -l .Xdefaults.fixed
+rm .Xdefaults.fixed

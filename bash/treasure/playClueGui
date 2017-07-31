@@ -1,0 +1,4 @@
+#!/opt/gnu/bin/bash
+set -a
+audiocontrol > /dev/null 2>&1 &
+audiotool $HOME/TreasureHunt/clue$1 > /dev/null 2>&1 

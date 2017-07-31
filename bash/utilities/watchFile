@@ -1,0 +1,37 @@
+#!/bin/bash
+
+delay=10
+file=''
+
+while getopts "d:f:" opt
+do
+   case $opt in
+      d) delay=$OPTARG;;
+      f) file=$OPTARG;;
+   esac
+done
+
+if [ -z $file ]; then
+   exit
+fi
+
+dir=`dirname $file`
+file_state=''
+dir_state=''
+
+while true;do
+   new_file_state=`ls -l $file 2>&1`
+   new_dir_state=`ls -ld $dir 2>&1`
+   if [ "$file_state" != "$new_file_state" ]; then
+      date
+      echo $new_file_state
+   else
+      if [ "$dir_state" != "$new_dir_state" ]; then
+         date
+         echo $new_dir_state
+      fi
+   fi
+   file_state=$new_file_state
+   dir_state=$new_dir_state
+   sleep $delay
+done

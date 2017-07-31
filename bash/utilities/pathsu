@@ -1,0 +1,8 @@
+#!/bin/bash
+
+while [[ "$PWD" != "/" ]];
+do  
+	echo $PWD
+    cd ..
+done
+echo $PWD

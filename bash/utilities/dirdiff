@@ -1,0 +1,14 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+set -a
+FILES=`ls $1/*.cc`
+FILES="$FILES `ls $1/*.h`"
+FILES="$FILES Imakefile"
+FILES="$FILES `ls *.tcl`"
+for file in $FILES
+do
+   echo "---------- FILE $file -----------"
+   diff $1/$file $2/$file | grep -v RCSID | grep -v "\$Id"
+done

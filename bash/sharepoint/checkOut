@@ -1,0 +1,21 @@
+#! /bin/bash
+
+pass=$1
+site=$2
+file=$3
+
+cat > soapdataout.xml <<EoSOAP
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <CheckOutFile xmlns="http://schemas.microsoft.com/sharepoint/soap/">
+      <pageUrl>$site/$file</pageUrl>
+      <checkoutToLocal>false</checkoutToLocal>
+    </CheckOutFile>
+  </soap:Body>
+</soap:Envelope>
+EoSOAP
+
+curl -s -S --ntlm --user $USER:$pass -d @soapdataout.xml \
+-H "SOAPAction: http://schemas.microsoft.com/sharepoint/soap/CheckOutFile" \
+-H "Content-Type: text/xml" $site/_vti_bin/Lists.asmx

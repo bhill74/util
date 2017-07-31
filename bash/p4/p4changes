@@ -1,0 +1,5 @@
+#!/bin/bash
+find . -name '*.h' -print -exec p4 have {} \; 2>&1 | awk "{print \$1}" | grep -v -- '#1' | grep -- '//'
+find . -name '*.cc' -exec p4 have {} \; 2>&1 | awk "{print \$1}" | grep -v -- '#1' | grep -- '//'
+find . -name '*.tcl' -exec p4 have {} \; 2>&1 | awk "{print \$1}" | grep -v -- '#1' | grep -- '//'
+find . -name 'Imakefile' -exec p4 have {} \; 2>&1 | awk "{print \$1}" | grep -v -- '#1' | grep -- '//'

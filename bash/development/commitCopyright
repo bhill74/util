@@ -1,0 +1,3 @@
+#!/opt/gnu/bin/bash
+
+cvs commit -m "17406: Updated the copyright information to 2004"

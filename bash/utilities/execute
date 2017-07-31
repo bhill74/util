@@ -1,0 +1,32 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+#**************************************************
+#%FUNCTION: execute
+#%DESCRIPTION: Executes a command, optionally on
+# a different host.
+#%ARGUMENTS:
+# command -- The command to execute.
+# [host] -- The name of the other host.
+# [h/help] -- To display the usage information.
+#%RETURNS:
+# The result of the command.
+#**************************************************
+if [ "$1" == "-h" ] || [ "$1" == "-help" ]; then
+   echo "Executes a command, optionally on a different host machine"
+   echo "  command -- The command to execute"
+   echo "  <host> -- The name of the other host"
+   echo "  -h/help -- Display this information"
+   echo ""
+   echo "usage: execute <path> [-h/help]"
+   exit
+fi 
+
+COMMAND=$1
+HOST=$2
+if [ -z "$HOST" ]; then   
+   exec $COMMAND
+else
+   /usr/bin/rsh $HOST $COMMAND
+fi

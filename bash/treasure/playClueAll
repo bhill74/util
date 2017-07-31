@@ -1,0 +1,8 @@
+#!/bin/bash
+set -a
+volume=60
+cd $HOME/TreasureHunt
+for clue in clue* 
+do
+   audioplay -v $volume $clue
+done

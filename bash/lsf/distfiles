@@ -1,0 +1,8 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/util/lsf
+install_dir $HOME/util/lsf 'b*'
+install_file $HOME/util/lsf settings.sh settings.sh

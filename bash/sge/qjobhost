@@ -1,0 +1,15 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+. ${HOME}/util/sge/init.sh
+jid=''
+rhost=''
+_qinit $1 jid rhost
+if [ ! -z "$rhost" ]; then
+   util=`basename $0`
+   rsh $rhost $util $jid/${SGE_CELL}
+   exit
+fi
+
+qstat | egrep -w "^ *$jid" | grep "@" | awk '{print $8}' | cut -f1 -d. | cut -f2 -d"@"

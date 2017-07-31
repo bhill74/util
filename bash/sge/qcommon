@@ -1,0 +1,24 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+opt=$1
+if [ -z "$opt" ]; then
+   opt=-ss
+fi
+
+hosts=`${CELLGEN}/bin/tmpname -s host`
+mkdir -p $hosts
+sge_home=/remote/sge/default
+find $sge_home -name qmaster -prune -o -name default.old -prune -o -name dist -prune -o -name settings.sh | grep -v CRAP | grep settings.sh | sort | while read line; do
+   source $line
+   cell=`echo $line | sed "s|${sge_home}/||" | sed "s|/settings.sh||" | sed "s|/common||"`
+   echo "Examing $cell"
+   qconf $opt 2>/dev/null | cut -f1 -d. | while read host; do
+      echo $host >> ${hosts}.hosts
+      echo $cell >> ${hosts}.${host}
+   done
+done
+
+cat $hosts.hosts | sort | uniq -c | sort -nr | perl -p -e "s|(\\S+)\$|\$1 . \"\\t\" . join( ',', grep( chomp, \`cat ${hosts}.\$1\` ) )|e" 2>/dev/null
+rm -rf $hosts

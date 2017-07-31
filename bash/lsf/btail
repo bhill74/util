@@ -1,0 +1,5 @@
+#!/bin/bash
+ID=$1
+FILE=`ls ${HOME}/.lsbatch/*.${ID}*.out`
+echo "LSF Log File - ${FILE}"
+tail -f $FILE

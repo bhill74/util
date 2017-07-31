@@ -1,0 +1,16 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+if test -z $1; then
+   find . -type f -print -exec chmod a+r {} \;
+   find . -type d -print -exec chmod a+rx {} \;
+else
+   if test -d $1; then
+      chmod a+rx $1;
+      echo Setting RX on $1
+   else
+      chmod a+r $1;
+      echo Setting R on $1
+   fi
+fi

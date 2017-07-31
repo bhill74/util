@@ -1,0 +1,66 @@
+# source the master ENV file
+source ${DEVHOME}/basic.sh
+
+# Prompts
+#  main prompt
+. ~/util/env/prompt.sh
+#  command completion prompt
+PS2='cmd> '
+#  select prompt
+PS3='sel> '
+#  xargs prompt
+PS4='x> '
+
+# Umask - permissions removed on file creation rwxr-xr-x
+umask 022
+
+# turn on export of environemnt variables
+set -a
+
+#************************************************************
+# General Settings
+
+# Set Editor
+EDITOR=xemacs
+
+#************************************************************
+# Remote Terminals
+# -- Customize the settings for remote terminals on this 
+# network.
+
+SGE_TERM_PREFER=lovejoy
+
+#************************************************************
+# Perforce
+# -- Customize the Perforce settings for this account.
+
+P4CLIENT=${USER}
+P4CONFIG=.p4config
+  
+#************************************************************
+# PATH
+# -- Add the utility directories to the PATH
+ 
+# PHP
+PATH=/opt/local/php/bin:${PATH}
+
+# PERL
+PATH=/depot/perl-5.8.3/bin:${PATH}
+
+# GDB
+PATH=/depot/gdb-6.3/bin/gdb:${PATH}
+
+# VNC additions
+PATH=${PATH}:${HOME}/vnc/bin
+
+#************************************************************
+# Utilities
+# -- Load the utilties available for this account and add
+# the local 'bin' directory to the path.
+source ${HOME}/util/util/settings.sh
+
+# Preserve the previous session ENV settings (if necessary)
+#preserveEnv
+
+# turn off export of environemnt variables
+set +a

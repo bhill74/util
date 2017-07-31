@@ -1,0 +1,3 @@
+#!/bin/bash
+. ${PWD}/oaenv.sh
+${PWD}/p_oa_lcv $@

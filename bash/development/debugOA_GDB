@@ -1,0 +1,19 @@
+#!/bin/bash
+
+file=.gdbinit
+QSC=`qsc`
+BASE=${CELLGEN}/openaccess/${QSC}
+echo > $file
+for path in `find ${BASE}/src/. -type d | grep -v linux_rhel`; do
+   echo "dir $path" >> $file
+done
+
+CADABRA_OS=`${CELLGEN}/bin/cuname`
+BASELIB="${BASE}/lib/lib.${CADABRA_OS}"
+export LD_LIBRARY_PATH="${BASELIB}:${BASELIB}/dbg:/lib:/usr/lib"
+
+echo $LD_LIBRARY_PATH
+
+export PATH=/usr/bin:$PATH
+/depot/xemacs/bin/xemacs -u bhill &
+#/usr/bin/gdb sctool

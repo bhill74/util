@@ -1,0 +1,7 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/util/p4
+install_other $HOME/util/p4

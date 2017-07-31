@@ -1,0 +1,10 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+echo 1.file: $1 > GDSVU.CFG
+echo 1.fnt0: /remote/artwork/fixed.shx 1 >> GDSVU.CFG
+echo 1.fnt1: /remote/artwork/fixed.shx 1 >> GDSVU.CFG
+echo 1.fnt2: /remote/artwork/fixed.shx 1 >> GDSVU.CFG
+echo 1.fnt3: /remote/artwork/fixed.shx 1 >> GDSVU.CFG
+/remote/artwork/xgdsvu $1

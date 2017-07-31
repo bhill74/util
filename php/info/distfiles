@@ -1,0 +1,8 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+DIR=$HOME/public_html/info
+initialize $DIR
+install_dir $DIR '*.php'

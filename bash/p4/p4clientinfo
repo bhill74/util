@@ -1,0 +1,68 @@
+#!/bin/env perl
+
+use strict;
+use warnings;
+use Fcntl qw<LOCK_EX LOCK_UN SEEK_END>;
+
+my $client=$ARGV[0];
+my $loc=$ARGV[1];
+my %info = ();
+
+my $cmd = "p4 -c ${client} opened 2>&1 | grep -- '${loc}' | sed \"s|${loc}/||\" | cut -f1 -d#";
+foreach my $file ( `$cmd` ) {
+  my ( $sub, $module ) = ( $file =~ m|^((.*)/)?src/([^/]+)| )[1,2];
+  if ( !$module ) {
+    last;
+  }
+  $sub = '' unless ( $sub );
+  $info{$sub}{$module}++;
+}
+
+$cmd = "p4 -c ${client} client -o | grep -- '${loc}' | sed \"s|${loc}/||\" | awk '{print \$1}'";
+foreach my $dir ( `$cmd` ) {
+  my ( $sub, $module ) = ( $dir =~ m|^((.*)/)?src/([^/]+)| )[1,2];
+  if ( !$module ) {
+    last;
+  }
+  $sub = '' unless ( $sub );
+  if ( !defined($info{$sub}{$module}) ) {
+    $info{$sub}{$module} = 0;
+  }
+}
+
+my $status = '';
+if ( $client =~ /(9\d{3,9})/ ) {
+  $status = `crm_query -star_id $1 -fields status_txt | tail -1`;
+  chomp $status;
+  $status ='('.$status.')';
+}
+
+sub lock {
+  my ($fh) = @_;
+  flock($fh, LOCK_EX) or die "Cannot lock file - $!\n";
+  # and, in case someone appended while we were waiting...
+  seek($fh, 0, SEEK_END) or die "Cannot seek - $!\n";
+}
+sub unlock {
+  my ($fh) = @_;
+  flock($fh, LOCK_UN) or die "Cannot unlock file - $!\n";
+}
+
+foreach my $sub ( sort keys %info ) {
+  my $file="p4_${sub}.rpt";
+  my $result = "  ${client}${status} ==> ";
+  foreach my $module ( sort keys %{$info{$sub}} ) {
+    $result .= $module;
+    if ($info{$sub}{$module} > 0) {
+      $result .= "{" . $info{$sub}{$module} . "}";
+    }
+    $result .= " ";
+  }
+  $result .= "\n";
+
+  open(my $fh, ">>", $file) or die("could not append to $file");
+  lock($fh);
+  print $fh $result;
+  #unlock($fh);
+  close $fh;
+}

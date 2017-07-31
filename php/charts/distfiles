@@ -1,0 +1,8 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+DIR=$HOME/public_html/php/charts_utils
+initialize $DIR
+install_dir $DIR '*.php'

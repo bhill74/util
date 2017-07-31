@@ -1,0 +1,64 @@
+# Prompts
+#  main prompt
+set prompt="[`hostname`] %! %~ : "
+
+
+
+
+
+
+
+# source the master ENV file
+source ${DEVHOME}/basic.csh
+
+
+
+# Umask - permissions removed on file creation rwxr-xr-x
+umask 022
+
+
+
+
+#************************************************************
+# General Settings
+
+# Set Editor
+setenv EDITOR xemacs
+
+#************************************************************
+# Remote Terminals
+# -- Customize the settings for remote terminals on this 
+# network.
+
+setenv SGE_TERM_PREFER lovejoy 
+
+#************************************************************
+# Perforce
+# -- Customize the Perforce settings for this account.
+
+setenv P4CLIENT ${USER}
+setenv P4CONFIG .p4config  
+
+#************************************************************
+# PATH
+# -- Add the utility directories to the PATH
+
+# PHP
+setenv PATH "/opt/local/php/bin:${PATH}"
+
+# PERL
+setenv PATH "/depot/perl-5.8.3/bin:${PATH}"
+
+# GDB
+setenv PATH "/depot/gdb-6.3/bin/gdb:${PATH}"
+
+# VNC additions
+setenv PATH "${PATH}:${HOME}/vnc/bin"
+
+#************************************************************
+# Utilities
+# -- Load the utilties available for this account and add
+# the local 'bin' directory to the path.
+source ${HOME}/csh/utilities
+sourceDir ${HOME}/csh
+setenv PATH ${HOME}/bin:${PATH}

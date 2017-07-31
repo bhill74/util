@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -a
+
+APPLICATION="xeyes -display $HOSTNAME${DISPLAY}"
+QUEUES=`bqueues -m $HOSTNAME | awk "{print \\$1}"`
+MAX=`bhosts $HOSTNAME | awk "{print \\$4}" | tail -1`
+
+for QUEUE in $QUEUES
+do
+   if [ "$QUEUE" == "QUEUE_NAME" ]; then
+      continue 
+   fi
+   for NUM in `seq 1 $MAX`
+   do 
+      TITLE="Hold Machine $HOSTNAME on $QUEUE - $NUM"
+      bsub -q $QUEUE -m $HOSTNAME -J "$TITLE" "$APPLICATION &"
+   done 
+done

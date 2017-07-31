@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [ "$DEV_MODE" == "cdesigner" ]; then
+   ${HOME}/util/cdesigner/branch --basic -local
+fi

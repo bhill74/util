@@ -1,0 +1,40 @@
+#!/bin/bash
+
+VALID=1
+if [ -z "$1" ]; then
+   VALID=0
+fi
+
+if [ "$2" != "disp" ] && [ "$2" != "clear" ]
+then
+   VALID=0
+fi
+
+if [ "$VALID" == "0" ]; then
+   echo "Usage: $0 <number> clear/disp [<pattern>]"
+   exit
+fi
+ 
+PATTERN="*"
+if [ ! -z "$3" ]; then
+    PATTERN=$3
+fi
+
+TOTAL=`ls -td $PATTERN | wc | awk '{print $1}'`
+REMAINDER=`expr $TOTAL - $1`
+
+if [ $REMAINDER -gt 0 ]; then  
+   FILES=`ls -td $PATTERN | tail -$REMAINDER`   
+fi
+
+if [ ! -z "$FILES" ]; then
+   echo "Removing $REMAINDER entries from" `pwd`
+   ls -ltd $FILES
+   if [ "$2" == "clear" ]; then
+      rm -rf $FILES
+   fi
+   echo
+fi
+
+echo "Keeping"
+ls -ltd *

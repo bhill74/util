@@ -1,0 +1,86 @@
+#!/bin/bash
+
+UNCHANGED=0
+RECENT=0
+TEST=1
+CHANGELIST=""
+DIR=""
+
+while getopts "urtc:d:" opt
+do
+   case $opt in
+      u) UNCHANGED=1;;
+      r) RECENT=1;;
+      t) TEST=1;;
+      c) CHANGELIST=$OPTARG;;
+      d) DIR=$OPTARG;;
+   esac
+done
+
+if [ $UNCHANGED -eq 1 ]; then
+   P4PWD=`p4 where 2>/dev/null | cut -f1 -d' ' | head -1 | sed "s|/\\.\\.\\.\$|/|"`
+   if [ ! -z "$P$PWD" ]; then
+      echo "Files from $P4PWD"
+      for FILE in `p4 opened ${DIR}... | cut -f1 -d' ' | sed "s|${P4PWD}||" | cut -f1 -d#`; do
+         DIFF=`p4 diff $FILE | grep -v $FILE`
+         if [ -z "$DIFF" ]; then
+            if [ $TEST -eq 1 ]; then
+               echo "Reverting $FILE"
+            else 
+               p4 revert $FILE 2>/dev/null
+            fi
+         fi
+      done
+   fi
+else
+   if [ $RECENT -eq 1 ]; then
+      if [ -z "$CHANGELIST" ]; then
+   	echo "A changelist must be provided"
+        exit
+      fi
+
+      function strip_suffix {
+         echo $1 | perl -pi -e "s/\#[0123456789]+ \w+//g"
+      }
+
+      change_tmp=`tmpname -p p4revert -s change`
+      p4 describe -s $CHANGELIST > $change_tmp
+
+      ALL_FILES=`cat ${change_tmp} | egrep "^\.\.\." | sed "s/^... //"`
+      EDIT_FILES=`echo ${ALL_FILES} | egrep " edit$"`
+      ADD_FILES=`echo ${ALL_FILES} | egrep " add$"`
+      DELETE_FILES=`echo ${ALL_FILES} | egrep " delete$"`
+
+      ALLFILES=`strip_suffix "${ALL_FILES}"`
+      EDIT_FILES=`strip_suffix "${EDIT_FILES}"`
+      ADD_FILES=`strip_suffix "${ADD_FILES}"`
+      DELETE_FILES=`strip_suffix "${DELTE_FILES}"` 
+
+      LAST=`expr $CHANGELIST - 1`   
+      if [ -z "${EDIT_FILES}" ]; then
+         echo "No files were edited"
+      else
+         echo "Edited Files"
+         echo $EDIT_FILES | sed "s/ /\n/g"
+	 echo 
+	 echo
+
+         p4 sync @${LAST}
+         p4 edit ${EDIT_FILES}
+         p4 sync
+         p4 resolve -ay ${EDIT_FILES}
+
+         STOP=`grep -n 'Affected files ...' ${change_tmp} | tail -1 | cut -f1 -d:`
+         STOP=`expr $STOP - 1`
+         SIZE=`expr $STOP - 1`
+         DESCRIPTION=`cat ${change_tmp} | head -${STOP} | tail -${SIZE}`
+
+	 id_tmp=`tmpname -p p4revert`
+	 ~/P4workspace/perl/p4/p4changelist -d "Reverted change for $CHANGELIST${DESCRIPTION}" -f "$EDIT_FILES" -o $id_tmp
+         echo "Please submit "`cat $id_tmp`
+         rm $id_tmp
+      fi
+
+      rm $change_tmp
+   fi
+fi

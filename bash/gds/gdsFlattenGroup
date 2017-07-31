@@ -1,0 +1,11 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+set -a
+for gdsFile in ../GDSIn/*.gds
+do
+   echo $gdsFile
+   cellName=`echo $gdsFile | sed -e 's,.gds$,,' | sed -e 's,.*/,,'`
+   gdsflatten -o $cellName.gds $gdsFile
+done

@@ -1,0 +1,16 @@
+#!/bin/env perl
+
+my $cmd="/usr/bin/zenity --list --title 'Diff Files' --width 600 --height 400 --checklist --column Chosen --column File";
+
+foreach my $line ( `diff -r --brief $ARGV[0] $ARGV[1] | grep differ` ) {
+  if ( $line =~ /Files ($ARGV[0]\/(.*?)) and $ARGV[1]/ ) {
+    $cmd .= " FALSE '$2'"
+  }
+}
+
+my( $result ) = `$cmd`;
+chomp $result;
+
+foreach my $file ( split( '\|', $result ) ) {
+  system("tkdiff $ARGV[0]/$file $ARGV[1]/$file");
+}

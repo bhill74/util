@@ -1,0 +1,61 @@
+#!/bin/bash
+
+. ${HOME}/util/process/process.sh
+process
+
+#**************************************************
+#%NAME: xfilter
+#%DESCRIPTION:
+# Used to choose which lines to keep/use from 
+# those that are piped into using STDIN
+#%ARGUMENTS:
+# -W: The width of the dialog to display
+# -H: The height of the dialog to display
+# -t: The title to display in the dialog. The
+#     default is X-Filter
+# -n: The descriptive name of the type of data 
+#     being filtered
+# -a: Select all by default
+# -d: Delimiter to use to separate lines. By
+#     default # is used
+# -h: Display the help
+#%RETURNS:
+# Only those lines that are selected
+#**************************************************
+
+# Default Parameters
+width=800
+height=400
+title=X-Filter
+name=Item
+help=0
+def=FALSE
+delim=#
+
+# Process Arguments
+while getopts "W:H:t:n:d:ah" opt
+  do
+  case $opt in
+      W) width=$OPTARG;;
+      H) height=$OPTARG;;
+      t) title=$OPTARG;;
+      n) name=$OPTARG;;
+      a) def=TRUE;;
+      d) delim=$OPTARG;;
+      h) help=1
+  esac
+done
+
+# Display Help if needed
+if [ $help -eq 1 ]; then
+    echo "!HELP!"
+    exit
+fi
+
+# Define and launch dialog for selecting input
+cmd="/usr/bin/zenity --list --title $title --width $width --height $height --checklist --separator $delim --column Chosen --column $name "
+while read line; do
+	cmd="$cmd $def $line"
+done
+echo $cmd
+$cmd | tr "$delim" "\n"

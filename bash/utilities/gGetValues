@@ -1,0 +1,108 @@
+#!/bin/bash
+
+current=$1
+choices=''
+delim=,
+force=0
+default=''
+title="Select one"
+text=''
+height=0
+
+while getopts "fC:c:t:w:d:D:H:" opt
+do
+   case $opt in
+      f) force=1;;
+      C) current=$OPTARG;; 
+      c) choices=$OPTARG;;
+      t) title=$OPTARG;;
+      w) text=$OPTARG;;
+      d) delim=$OPTARG;;
+      D) default=$OPTARG;;
+      H) height=$OPTARG;;
+   esac
+done      
+
+# Determine if the menu GUI will be used.
+menu=(${HOME}/util/util/gMenu)
+IFS=$delim read -a inputs <<< "$current"
+if [[ $current =~ $delim$ ]]; then
+    inputs=("${inputs[@]}" "")
+fi
+if [[ ${#inputs[@]} -gt 1 ]]; then
+    menu=("${menu[@]}" -m)
+    # Add to the defaults
+    default="${default}${delim}${current}"
+    # Find parts of the values that are unique
+    options=($choices)
+    reduced=()   
+    last=$((${#inputs[@]} - 1))
+    match=0
+    for ((i=0;i<${#inputs[@]};++i)); do
+	input=${inputs[$i]}	
+	found=0	
+	for option in "${options[@]}"; do	   
+	    if [ ! -z "$option" ]; then
+		if [ "$option" = "$input" ]; then		  
+		    found=1
+		    break
+		else		    
+		    if [[ $i -eq $last ]] && [[ "$option" =~ ^$input ]]; then
+			match=1
+			reduced=("${reduced[@]}" "$option")		
+		    fi
+		fi
+	    fi
+	done
+	if [[ $found -eq 0 ]]; then
+	    options=("${options[@]}" "$input") 	   
+        fi
+	if [[ $i -ne $last ]] || [[ $found -eq 1 ]]; then
+	    reduced=("${reduced[@]}" "$input")
+	fi
+    done
+    IFS=$delim
+    if [[ ${inputs[$last]} = "" ]] || [[ $match -eq 0 ]]; then
+	choices="${options[*]}"
+    else
+	choices="${reduced[*]}"
+    fi
+else 
+    if [ "$force" = "1" ]; then
+	menu=("${menu[@]}" -m)
+        # Add to the defaults
+	default="${default}${delim}${current}"
+	choices=${choices// /$delim}
+    fi
+fi
+
+# If the menu dialog has been configured then use it.
+if [ ${#menu[@]} -gt 1 ]; then
+    menu=("${menu[@]}" -t "$title")
+    menu=("${menu[@]}" -D "$default")
+    menu=("${menu[@]}" -c "$choices")
+    menu=("${menu[@]}" -w "$text")
+    if [[ $height -gt 0 ]]; then
+	menu=("${menu[@]}" -H $height) 
+    fi
+    result=$("${menu[@]}")
+    # Make sure the original selections are at the front
+    IFS=$delim read -a values <<< "$result"
+    count=${#values[@]}
+    pre=()
+    for input in "${inputs[@]}"; do
+	for ((i=0;i<$count;++i)); do
+	    value=${values[$i]}
+	    if [ ! -z "$value" ] && [ "$value" = "$input" ]; then	
+		pre=("${pre[@]}" $value)
+		unset values[$i]
+		break
+	    fi	   
+	done
+    done
+    modified=("${pre[@]}" "${values[@]}")
+    IFS=$delim
+    echo "${modified[*]}"
+else
+    echo $choices
+fi

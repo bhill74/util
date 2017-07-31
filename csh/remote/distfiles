@@ -1,0 +1,7 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/util/remote
+install_dir $HOME/util/remote

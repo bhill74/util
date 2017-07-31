@@ -1,0 +1,7 @@
+#!/bin/bash
+
+. ${HOME}/util/paths/settings.sh
+export ORACLE_HOME=/depot/oracle_client/oracle11/product/11.1.0/client_1
+path_prepend ${ORACLE_HOME}/bin
+export LD_LIBRARY_PATH=${ORACLE_HOME}/lib:$LD_LIBRARY_PATH
+sqlplus $@

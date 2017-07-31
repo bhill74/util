@@ -1,0 +1,9 @@
+#!/opt/gnu/bin/bash
+
+date +"%a %b %e %T %Y  Brian Hill  <brian.hill@synopsys.com>" > tmp
+echo >> tmp
+echo "        * <all files>" >> tmp
+echo "        17406: Updated the copyright information to 2004." >> tmp
+echo >> tmp
+cat ChangeLog >> tmp
+mv tmp ChangeLog

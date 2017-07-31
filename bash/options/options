@@ -1,0 +1,95 @@
+#!/bin/bash
+
+cmd=''
+arg=''
+base=$PWD
+verbose=0
+while getopts "c:a:v" opt
+do
+   case $opt in
+      c) cmd=$OPTARG;;
+      a) arg=$OPTARG;;
+      v) verbose=1;;
+    esac
+done 
+
+get_env_vars() {
+    local cmd=$1 arg=$2
+    vars="compgen -v"
+    if [ ! -z "$cmd" ]; then
+	vars="$vars | egrep '^${cmd}_'"
+    else 
+	vars="$vars | egrep '^[a-z]+_'"
+    fi
+
+    if [ ! -z "$arg" ]; then
+	vars="$vars | grep '_${arg}$'" 
+    fi
+
+    if [ $verbose -eq 1 ]; then
+	echo "  ## $vars" 1>&2
+    fi
+    eval $vars
+}
+ 
+display_file () {
+    local file=$1 cmd=$2 arg=$3
+    if [ ! -e "$file" ]; then	
+	if [ $verbose -eq 1 ]; then
+	    echo "  ## No $file file" 1>&2
+	fi
+	return
+    fi	
+    
+    disp='cat $file 2>/dev/null'
+    if [ ! -z "$cmd" ]; then
+	disp="$disp | egrep '^$cmd.'"
+    fi
+
+    if [ ! -z "$arg" ]; then
+	disp="$disp | grep '.${arg}=' | cut -f2 -d=" 
+    fi
+
+    if [ $verbose -eq 1 ]; then
+	echo "  ## $disp" 1>&2
+    fi
+    eval $disp
+}
+
+display_path () {	
+    local dir=$1 cmd=$2  arg=$3
+    if [ $verbose -eq 1 ]; then
+	echo "  ## Processing $dir" 1>&2
+    fi
+
+    display_file "$dir/options.arc" "$cmd" "$arg"
+    for file in `ls $dir/${cmd}.arc 2>/dev/null`; do	
+	display_file $file "$cmd" "$arg"
+    done	
+}
+
+for var in `get_env_vars "$cmd" "$arg"`; do
+    if [ $verbose -eq 1 ]; then
+	echo "  ## ENV variable $var" 1>&2
+    fi
+    value_string=$(eval echo \$$var)
+    values=(${value_string//^/ })
+    for value in "${values[@]}"; do
+	if [ -z "$arg" ]; then
+	    var=$(echo $var | sed "s/_/./")
+	    echo "${var}=${value}"
+	else
+	    echo $value
+	fi
+    done
+done
+
+while [ ! -z "$base" ]; do
+    display_path "$base" "$cmd" "$arg"
+    base=`dirname $base`
+    if [ "$base" == "/" ]; then
+	base=""
+    fi
+done
+
+display_path "$HOME" "$cmd" "$arg"

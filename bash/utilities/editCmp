@@ -1,0 +1,5 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+xemacs $1/$3 $2/$3 &

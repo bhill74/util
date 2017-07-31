@@ -1,0 +1,29 @@
+#! /bin/bash
+
+pass=$1
+site=$2
+file=$3
+
+# Upload
+echo "Upload"
+curl -s -S --ntlm --user $USER:$pass --upload-file $file \
+    -k $site/$file
+
+cat > soapdataout.xml <<EoSOAP
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+     <CheckInFile xmlns="http://schemas.microsoft.com/sharepoint/soap/">
+      <pageUrl>$site/$file</pageUrl>
+    </CheckInFile>
+  </soap:Body>
+</soap:Envelope>
+EoSOAP
+
+
+# Check in
+echo "Check in"
+curl -s -S --ntlm --user $USER:$pass -d @soapdataout.xml \
+-H "SOAPAction: http://schemas.microsoft.com/sharepoint/soap/CheckInFile" \
+-H "Content-Type: text/xml" \
+$site/_vti_bin/Lists.asmx

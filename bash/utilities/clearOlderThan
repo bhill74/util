@@ -1,0 +1,40 @@
+#!/bin/bash
+
+VALID=1
+if [ -z "$1" ]; then
+   VALID=0
+fi
+
+if [ "$2" != "disp" ] && [ "$2" != "clear" ]
+then
+   VALID=0
+fi
+
+if [ "$VALID" == "0" ]; then
+   echo "Usage: $0 <days> clear/disp"
+   exit
+fi
+
+for FILE in `ls -d *`
+do
+   pushd ./$FILE > /dev/null
+   RESULTS=`find . -ctime -$1`
+   if [ -z "$RESULTS" ]; then
+      FILES="$FILES $FILE"
+   else 
+      KEEP="$KEEP $FILE"
+   fi 
+   popd > /dev/null 
+done
+
+if [ ! -z "$FILES" ]; then
+   echo "Removing from" `pwd` "older than $1 days"
+   ls -ltd $FILES
+   if [ "$2" == "clear" ]; then
+      rm -rf $FILES
+   fi
+   echo
+fi
+
+echo "Keeping"
+ls -ltd $KEEP

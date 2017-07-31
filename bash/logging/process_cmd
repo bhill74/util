@@ -1,0 +1,103 @@
+#!/bin/bash
+
+### Debug
+debug=0
+if [ ! -z "$DEBUG_log" ]; then
+   debug=1
+fi
+
+# Command options
+while getopts "P:p:c:a:u:d" opt
+do
+   case $opt in
+      P) ppid=$OPTARG;;
+      p) path=$OPTARG;;
+      u) user=$OPTARG;;
+      c) command=$OPTARG;;
+      a) args=$OPTARG;;
+      d) debug=1;;
+   esac
+done
+
+
+### Current user
+if [ -z "$user" ]; then
+   user=$USER
+fi
+
+### Current host
+if [ -z "$hostname" ]; then
+   host=$HOSTNAME
+fi
+
+### Current site
+if [ -z "$site" ]; then
+   site=`/usr/local/bin/siteid`
+fi
+
+### OS
+if [ -z "$os" ]; then
+   os=`uname -a`
+fi
+
+### Current executable info
+# Parent process
+cpid=$$
+if [ -z "$ppid" ]; then
+   ppid=$PPID
+   if [ -z "$ppid" ]; then
+      ppid=`ps -o ppid -p $cpid | tail -1 | awk '{print $1}'`
+   fi  
+fi
+
+# Command and arguments
+if [ -z "$command" ]; then
+   command=`ps -o cmd -p $ppid 2>/dev/null | tail -1 | awk '{print $2}'`
+   args=''
+   if [ -z "$commanda" ]; then
+      p=`ps -f -p $ppid | head -1 | awk '{print index($0,"CMD")}'`
+      line=`ps -f -p $ppid | tail -1 | cut -c $p-`
+      s=`echo $line | awk '{print $1}'`
+      f=`echo $line | awk '{print $2}'`
+      h=`head -1 $f | sed "s/^#!//"`
+      if [ "$h" = "$s" ]; then
+         command=$f
+         l=`echo "$s $f" | wc | awk '{print $3}'`
+      else 
+         command=$s
+         l=`echo $s | wc | awk '{print $3}'`
+      fi
+      args=`echo $line | cut -c${l}- | sed 's/^ *//'`
+   else
+      args=`ps -o args -p $ppid | tail -1`
+   fi
+fi
+
+# Directory of executable
+if [ -z "$path" ]; then
+   path=`dirname $command`
+   path=`pushd $path >/dev/null 2>&1;pwd;popd >/dev/null 2>&1`
+fi
+
+# Base executable name
+command=`basename $command`
+
+# Insert into the database.
+query="insert into \`commands\` ( \`command\`, \`arguments\`, \`user\`, \`date\`, \`site\`, \`path\`, \`os\` ) "
+query="$query values ( '$command', '$args', '$user', NOW(), '$site', '$path', '$os' )"
+if [ $debug = 1 ]; then
+   echo "ParentPID: $ppid (of $cpid)"
+   echo "User:      $user"
+   echo "Hostname:  $host"
+   echo "Command:   $command"
+   echo "Arguments: $args"
+   echo "Directory: $path"
+   echo "Site:      $site"
+   echo "OS:        $os"
+   echo $query
+   exit
+fi
+
+# Submit the MySQL query (using the latest binary)
+sql=`ls -d /depot/mysql* | sort -k 2 -t - -nr | head -1`
+${sql}/bin/mysql -u bhill --password=two4one -h ca09-cadabra-sql -D bhill_sandbox -e "$query" &

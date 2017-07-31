@@ -1,0 +1,41 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+#**************************************************
+#%FUNCTION: fileTest
+#%DESCRIPTION: Executes a file test command,
+# optionally on another host.
+#%ARGUMENTS:
+# test -- The test to perform (.ie "e" or "x")
+# file -- The file to test (absolute name preferably)
+# [host] -- The name of the other host.
+# [h/help] To display the usage information.
+#%RETURNS:
+# The result of the test.
+#**************************************************
+if [ "$1" == "-h" ] || [ "$1" == "-help" ]; then
+   echo "Executes a file test, optionally on a different host machine"
+   echo "  test -- The test to perform (ie. \"e\" or \"x\")"
+   echo "  file -- The file to test"
+   echo "  <host> -- The name of the other host"
+   echo "  -h/help -- Display this information"
+   echo ""
+   echo "usage: fileTest <path> [-v/-verbose]"
+   exit
+fi 
+
+TEST=$1
+FILE=$2
+HOST=$3
+if [ -z "$HOST" ]; then
+   if [ -$TEST $FILE ]; then echo 1; else echo 0; fi
+else
+   TYPE=`pwdName $SHELL`
+   if [ "$TYPE" == "bash" ]; then
+      COMMAND="if [ -$TEST $FILE ]; then echo 1; else echo 0; fi"
+   else
+      COMMAND="~bhill/bin/fileTest $TEST $FILE"
+   fi
+   execute "${COMMAND}" $HOST
+fi

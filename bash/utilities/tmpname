@@ -1,0 +1,16 @@
+#!/bin/bash
+
+dir=/tmp
+prefix=""
+suffix=".txt"
+
+while getopts "d:p:s:" opt
+do
+   case $opt in
+      d) dir=$OPTARG;;
+      p) prefix="${OPTARG}-";;
+      s) suffix=".${OPTARG}";;          
+   esac
+done
+
+echo ${dir}/${prefix}`date +%Y%m%d%H%M%S`${suffix}

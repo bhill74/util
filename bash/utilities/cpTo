@@ -1,0 +1,35 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+SITES=`echo $1 | sed "s/,/ /g"`
+FILE=/tmp/cpTo_`date +%Y%m%d%H%M%S`.txt
+echo > $FILE
+
+for SITE in $SITES; do
+   HOST=`${CELLGEN}/bin/machine -s ${SITE} -1 -c all`
+
+   LOCATION=$2
+   if [ -z "$LOCATION" ]; then
+      source ${CELLGEN}/browse
+      browseFile ${HOME}/pubic
+   fi
+
+   DESTINATION=$3
+   if [ -z "$DESTINATION" ]; then
+      DESTINATION=`rsh ${HOST} pwd`/public
+   fi
+
+   echo "Copying ${LOCATION} to ${SITE} into ${DESTINATION} (via ${HOST})"
+   rcp ${LOCATION} ${HOST}:${DESTINATION}
+   FILENAME=`basename $LOCATION`
+   if [ -z "$LOGNAME" ]; then
+      LOGNAME=`whoami`
+   fi
+
+   echo "$FILENAME now located in $DESTINATION in $SITE" >> $FILE
+   echo >> $FILE
+done
+
+cat $FILE | mail ${LOGNAME}@synopsys.com
+rm $FILE

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+rm $HOME/.cshrc.default >/dev/null 2>&1
+install_file $HOME cshrc .cshrc.default

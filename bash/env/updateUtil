@@ -1,0 +1,55 @@
+#!/bin/bash
+
+set -a
+
+SITE=$1
+if [ ! -z "$SITE" ]; then
+   CELLGEN=`${HOME}/cadabraPath cellgen`
+   HOST=`${CELLGEN}/bin/machine -c all -s $SITE -1`
+   echo "Updating on host $HOST at $SITE"
+   
+   binary=`echo $0 | sed 's|^.*/||g'`
+   echo "  rsh $HOST $binary"
+   rsh $HOST $binary
+   exit
+fi
+
+cd ${HOME}/P4workspace
+echo Updating Utilities from `pwd`
+
+if [ -z "$CADABRABASE" ]; then
+    CADABRABASE=$1
+fi
+
+if [ -z "$LM_LICENSE_FILE" ]; then
+    LM_LICENSE_FILE=27000@mental
+fi
+
+if [ -z "$P4CONFIG" ]; then
+    P4CONFIG=.p4config
+fi
+
+CADABRABASE=`${HOME}/cadabraPath releases`
+for version in `ls -rt $CADABRABASE | grep -v -- '-B'`; do 
+    path=$CADABRABASE/$version    
+    if [ -x "$path/bin/cuname" ]; then
+	ARCH=`$path/bin/cuname`
+	if [ -x "$path/bin/cadabra" ]; then
+	    if [ -x "$path/bin.${ARCH}/abratool" ]; then
+		break
+	    fi
+	fi
+    fi
+    path=""
+done
+if [ -z "$path" ]; then
+    echo "  No CADABRAHOME found in $CADABRABASE"
+    exit
+fi
+CADABRAHOME=$path
+echo "  Using $CADABRAHOME"
+if [ -e "$P4CONFIG" ]; then
+   /depot/perforce/p4 sync 2>&1
+fi
+./install 2>&1
+echo Done

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+loc=$1
+rm -rf *.rpt
+for dir in $(p4 dirs $loc/* | sed "s|$1/||"); do    
+    touch "p4_${dir}.rpt";
+done
+
+i=0
+for client in $(p4 clients -u $USER | awk '{print $2}'); do
+    if [ ${client/${USER}_build/} != $client ]; then
+	continue
+    fi
+
+    echo $client
+    ~/P4workspace/bash/p4/p4clientinfo $client "$loc" &
+    ((i++))
+    if [ $i -gt 10 ]; then
+	wait
+	i=0
+    fi
+done
+wait

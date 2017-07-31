@@ -1,0 +1,46 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+if [ "$1" = "-help" ]; then
+   qsub -help | sed "s/qsub/qsamesub/g"
+   exit
+fi
+
+. ${HOME}/util/sge/init.sh
+jid=''
+rhost=''
+_qinit $1 jid rhost
+shift 1
+
+args="$@"
+
+if [ ! -z "$rhost" ]; then
+    util=$(basename $0)
+    id=$jid/$SGE_CELL
+    args=$(echo $args | sed "s|JID|$id|g")
+    rsh $rhost "$util $id $args"
+    exit
+fi
+
+project=$(qstat -j $jid | grep project: | awk '{print $2}')
+if [ -z "$project" ]; then
+    exit
+fi
+
+hard=$(qstat -j $jid | grep 'hard resource_list:' | awk '{print $3}')
+soft=$(qstat -j $jid | grep 'soft resource_list:' | awk '{print $3}')
+name=$(qstat -j $jid | grep 'job_name:' | awk '{print $2}')
+
+cmd="qsub -P $project -v SGE_CELL "
+if [ ! -z "$hard" ]; then
+   cmd="$cmd -l $hard"
+fi
+if [ ! -z "$soft" ]; then
+   cmd="$cmd -soft -l $soft"
+fi
+
+args=$(echo $args | sed "s|HOME|$HOME|g")
+cmd="$cmd $args"
+echo $cmd
+$cmd

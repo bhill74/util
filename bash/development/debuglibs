@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -a
+directories=`find .. -type d -maxdepth 1 | perl -p -e "s|\.\./*||"`
+
+for dir in $directories
+do
+    perl -pi -e "\$f=1;while(\$f){\$f=s/^(\w*LIBS[^\0]*\W)$dir(\W)/\$1${dir}g\$2/g;}" Makefile
+done

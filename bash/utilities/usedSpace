@@ -1,0 +1,6 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+du -sk * | sort -n -k1 -r | while read line; do
+   echo $line
+done

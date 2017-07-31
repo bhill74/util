@@ -1,0 +1,8 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+rm RESULT.ps > /dev/null 2>&1
+/remote/artwork/makePlot -noheader -nolegend -noruler -title "Library Comparison" -out RESULT.ps -map gdsplot.map -paper A -structure TILE RESULT.gds 
+rm RESULT.rtl > /dev/null 2>&1
+/remote/artwork/makePlot -noheader -nolegend -noruler -title "Library Comparison" -out RESULT.rtl -map gdsplot.map -paper E -structure TILE RESULT.gds 

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+. ${HOME}/util/oracle/settings.sh
+sqlplus -S ccollread/ccollread@//sderh6:1522/CCLDB01 $@

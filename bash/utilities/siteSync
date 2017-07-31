@@ -1,0 +1,23 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+LOCAL=`siteid`
+
+PWD=`pwd`
+SUBDIR=`echo $PWD | perl -p -e "s|${HOME}/||g"`
+echo "Synchronizing the files in $SUBDIR across all sites"
+
+for SITE in $SITES
+do
+   if [ "$LOCAL" == "$SITE" ]; then
+      continue
+   fi
+
+   HOST=`${CELLGEN}/bin/machine -c all -s $SITE -1`   
+   DIR=`rsh $HOST pwd`
+   echo "  Connecting to ${DIR}/${SUBDIR} on ${HOST} (${SITE})"   
+
+   rsh $HOST mkdir -p ${DIR}/${SUBDIR}   
+   rsync -auvzL . ${HOST}:${DIR}/${SUBDIR}
+done

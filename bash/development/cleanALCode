@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+echo Debug Interruptions
+find . -name '*.al' -exec grep debugInterruption {} /dev/null \;
+echo "Make Canvas commands (_makeCanvas)"
+find . -name '*.al' -exec grep makeCanvas {} /dev/null \;
+echo "ShapeDB commands (openShapeDB/highlight*)"
+find . -name '*.al' -exec egrep "(openShapeDB|highlight*)" {} /dev/null \;

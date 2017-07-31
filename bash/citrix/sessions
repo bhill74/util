@@ -1,0 +1,51 @@
+#!/bin/bash
+
+users=`{ getent group ori_pv; getent group cadabra; } | cut -f4 -d: | sed "s/,/ /g" | sort | uniq`
+echo $users
+
+for site in $SITES; do
+    indx=1
+    while [ $indx -lt 20 ]; do
+	host="${site}term${indx}"
+	
+	if [ "$host" == "ca09term2" ]; then
+	    let indx=indx+1
+	    continue
+	fi
+
+	echo $host
+	
+        # Does the host exist.      
+	count=`nslookup $host 2>/dev/null | grep Address | wc | awk '{print $1}'`
+	if [ $count -lt 2 ]; then
+	    let indx=indx+1
+	    continue
+	fi
+	
+	echo C $count
+
+        # Does the host have the CITRIX commands available.
+	cmd='loc=`which ctxquser 2>/dev/null`;echo $loc;if [ -e "$loc" ]; then echo 1; else echo 0; fi'
+	echo e
+	dsa=`rsh $host "$cmd" 2>/dev/null | tail -1`     
+	echo f
+	if [ $dsa -eq 0 ]; then
+	    let indx=indx+1
+	    continue
+	fi   
+	
+	echo ----- $host -----
+	echo
+	
+	FILE=/tmp/citrix_$HOST_`date "+%Y%m%d%H%M%S%s"`.txt
+	rsh $host ctxquser > $FILE 2>/dev/null           
+	
+	for user in $users; do
+	    cat $FILE | grep $user
+	done
+	
+	rm $FILE
+	
+	let indx=indx+1
+    done
+done

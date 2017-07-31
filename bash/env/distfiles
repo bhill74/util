@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+rm $HOME/.bashrc.default >/dev/null 2>&1
+install_file $HOME bashrc .bashrc.default
+
+initialize $HOME/util/env
+install_other $HOME/util/env

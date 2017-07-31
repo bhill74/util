@@ -1,0 +1,49 @@
+# DOS <--> UNIX
+function dos2unix {
+   echo "$1"
+   find . -name '$1' -print -exec perl -pi -e 's/\r//g;' {} \;
+}
+function unix2dos {
+   echo "$1"
+   find . -name '$1' -print -exec perl -pi -e 's/\n/\r\n/g;' {} \;
+}
+
+# MAC <--> UNIX
+function mac2unix {
+   find . -name '$1' -print -exec perl -pi -e 's/\r//g;' {} \;
+}
+function unix2mac {
+   find . -name '$1' -print -exec perl -pi -e 's/\n/\r/g;' {} \;
+}
+
+#**************************************************
+#%FUNCTION: sourcedir
+#%DESCRIPTION: Sources an entire directory of files
+#%ARGUMENTS:
+# [h/help] To display the usage information.
+#%RETURNS:
+# Nothing unless the verbose command is used and
+# if sourcing any of the files results in output.
+#**************************************************
+function sourcedir {
+    if test "$1" = "-h" || test "$1" = "-help" ; then
+       echo "Sources an entire directory of files"
+       echo "  <path> -- The path of files to source"
+       echo "  -v/verbose -- Display the name of each file"
+       echo "  -h/help -- Display this information"
+       echo "usage: sourcedir <path> [-v/-verbose]"
+       return
+    fi 
+
+    for file in $1/*
+    do
+	if test "$2" = "-v" || test "$2" = "-verbose" ; then
+	echo "Sourcing $file"
+    fi
+    source $file
+    done
+}
+
+#! Remove the OLD functions
+unset execute
+unset filetest

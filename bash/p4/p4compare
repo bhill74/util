@@ -1,0 +1,25 @@
+#!/bin/bash
+
+P4PWD=`p4 where | cut -f1 -d' ' | sed -s 's/\.\.\.//'`
+START=$1
+STOP=$2
+if [ -z "$START" ]; then
+   echo "No time value given"
+   exit
+fi
+
+for FILENAME in `find . -name ChangeLog | sed 's/^\.\///'`
+do
+   SOURCE=${P4PWD}${FILENAME}@"${START}"
+   TARGET=$FILENAME
+   if [ ! -z "$STOP" ]; then
+      TARGET=${P4PWD}${FILENAME}@"${STOP}"
+   fi
+
+   RESULT=`p4 diff2 ${TARGET} ${SOURCE} | grep -v identical`
+
+   if [ ! -z "$RESULT" ]; then
+      echo "Filename $FILENAME"
+      p4 diff2 ${TARGET} ${SOURCE} | sed 's/^<//'
+   fi
+done

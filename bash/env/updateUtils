@@ -1,0 +1,13 @@
+#!/bin/bash
+
+for SITE in $SITES
+do
+   case $SITE in 
+     ca09|cn42|in01|us01)
+       updateUtil $SITE
+       ;;
+     *)
+       remoteUpdateUtil $SITE
+       ;;
+   esac
+done

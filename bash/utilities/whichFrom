@@ -1,0 +1,26 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+WHICH=`which which 2>/dev/null`
+if [ -z "$WHICH" ]; then
+   WHICH=/usr/bin/which
+fi
+
+while true; do
+   case $1 in
+      "")
+         break
+         ;;
+     -p)
+         shift
+         PATH=$1
+	 shift
+         ;;
+     *)
+         ARGS="$ARGS $1"
+	 shift
+          ;;
+   esac
+done
+
+$WHICH $ARGS

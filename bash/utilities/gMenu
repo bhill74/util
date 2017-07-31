@@ -1,0 +1,82 @@
+#!/bin/bash
+
+. ${HOME}/util/process/process.sh
+process
+
+#**************************************************
+#%NAME: gMenu
+#%DESCRIPTION:
+# Used to select one or more options from a list of
+# choices through a pop-up dialog.
+#%ARGUMENTS:
+# -s: Single choice. The options are presented as 
+#     radio buttons.
+# -m: Multiple choice. The options are presented as
+#     check buttons.
+# -D: The default values to choose
+# -c: The choices to present to the user
+# -t: The title to display in the dialog
+# -w: The desription to include in the dialog
+# -d: The delimiter to use to separate choices. By
+#     default , is used
+# -W: The width of the dialog to display
+# -H: The height of the dialog to display
+# -h: Display the help
+#**************************************************
+
+# Determines if an element is contained in a given array.
+function contains () {
+  local e
+  for e in "${@:2}"; do 
+      if [[ "$e" == "$1" ]]; then 
+	  echo TRUE; return
+      fi
+  done
+  echo FALSE
+}
+  
+# Defalt Parameters
+cmd=(/usr/bin/zenity --list);
+defv=''
+optv=''
+delim=,
+help=0
+
+# Process Arguments
+while getopts "smc:t:w:d:D:W:H:" opt
+do
+   case $opt in
+      s) cmd=("${cmd[@]}" --radiolist --column Selected --column Item);;
+      m) cmd=("${cmd[@]}" --checklist --column Chosen --column Item);;
+      D) defv=$OPTARG;;
+      c) optv=$OPTARG;; 
+      t) cmd=("${cmd[@]}" --title "$OPTARG");;
+      w) cmd=("${cmd[@]}" --text "$OPTARG");;
+      d) delim=$OPTARG;;
+      W) cmd=("${cmd[@]}" --width "$OPTARG");; 
+      H) cmd=("${cmd[@]}" --height "$OPTARG");; 
+      h) help=1;;
+    esac
+done  
+cmd=("${cmd[@]}" --separator "$delim")
+
+if [ $help -eq 1 ]; then
+    echo "!HELP!"
+    exit
+fi
+
+# Process default values
+def=()
+while IFS=$delim read -ra ops; do
+    def=("${def[@]}" "${ops[@]}")
+done <<< "$defv"
+  
+# Process all choices
+while IFS=$delim read -ra ops; do
+    for op in "${ops[@]}"; do		     
+	cmd=("${cmd[@]}" $(contains "$op" "${def[@]}") "$op")
+    done
+done <<< "$optv"
+
+# Launch the dialog
+"${cmd[@]}"

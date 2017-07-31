@@ -1,0 +1,18 @@
+# AE Account (to log in)
+alias ae='rlogin $HOSTNAME -l ae' 
+
+# CAE Account (to log in)
+alias cae='rlogin $HOSTNAME -l cae' 
+
+# Benchmark Account (to log in)
+alias bmk='rlogin $HOSTNAME -l ca09-bmk'
+
+# Web Development Account (to log in)
+alias wwwdev='rlogin $HOSTNAME -l wwwdev'
+
+# Build Account (to log in)
+alias build='rlogin $HOSTNAME -l cad-bld'	
+
+# Engmail/WWW.eng aliases
+alias engmail='telnet engmail.uwaterloo.ca'
+alias web='telnet www.eng.uwaterloo.ca'

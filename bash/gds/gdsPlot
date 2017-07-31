@@ -1,0 +1,16 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+rm $1.gds > /dev/null 2>&1
+/remote/artwork/tilegds -alpha -ext gds -hpad 2.0 -libname $1 -o $1.gds -topname $1 -topdown
+rm $1.ps > /dev/null 2>&1
+/remote/artwork/makePlot -out $1.ps -map gdsplot.map -paper A -structure $1 $1.gds 
+rm $1.rtl > /dev/null 2>&1
+/remote/artwork/makePlot -out $1.rtl -map gdsplot.map -paper E -structure $1 $1.gds 
+rm $1.gds.tar > /dev/null 2>&1
+rm $1.gds.tar.gz > /dev/null 2>&1
+rm $1.rtl.gz > /dev/null 2>&1
+tar cf $1.gds.tar *.gds
+gzip $1.gds.tar
+gzip $1.rtl

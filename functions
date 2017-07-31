@@ -1,0 +1,109 @@
+function clear() {
+    if [ ! -z "$_debug" ] && [ $_debug = 1 ]; then
+        echo "  Clearing $1"   
+    fi
+    rm -rf $1 > /dev/null 2>&1
+}
+
+function initialize() {
+    if [ ! -z "$_debug" ] && [ $_debug = 1 ]; then
+        echo "  Initializing $1"   
+    fi
+    mkdir -m 755 -p $1 > /dev/null 2>&1   
+}
+
+function argsf() {
+    export _directory_=$1
+    export _source_=$2
+    export _target_=$_source_
+    if [ ! -z "$3" ]; then
+        export _target_=$3
+    fi
+}    
+
+function used() {
+    _used_="$_used_ $1 "
+}
+
+function is_used() {
+    if [[ $_used_ =~ " $1 " ]]; then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
+function get_files() {
+    ls $1 | grep -v distfiles | egrep -v "~$" | egrep -v "^_" | while read list; do
+        ls -ld "$list" | grep -v ^d > /dev/null && echo $list
+    done
+}
+
+function get_dirs() {
+    ls $1 | while read list; do
+        ls -ld "$list" | grep ^d > /dev/null && echo $list
+    done
+}
+
+function install_dir () {
+    _directory_=$1
+
+    for dir in `get_dirs`; do
+        initialize $_directory_/$dir
+    done
+
+    for file in `get_files "$2"`; do          
+        install_file $_directory_ $file
+    done
+}	   
+
+function install_dir_exec () {
+    _directory_=$1
+
+    for dir in `get_dirs`; do
+        initialize $_directory_/$dir
+    done
+
+    for file in `get_files "$2"`; do         
+        install_exec $_directory_ $file
+    done
+}
+
+function install_file () {
+    argsf $@ 
+
+    sub_dir=`dirname $_target_`
+    if [ ! -z "$sub_dir" ] && [ "$sub_dir" != "." ]; then
+       initialize $_directory_/$sub_dir
+    fi
+
+    if [ ! -z "$_debug" ] && [ $_debug = 1 ]; then
+        echo "  Updating $_source_ --> $_directory_/$_target_"   
+    fi
+
+    cp $_source_ $_directory_/$_target_
+    chmod u+w $_directory_/$_target_   
+    perl -pi $BASE/replace.pl $_directory_/$_target_
+    used $_source_
+}
+
+function install_exec () {
+    argsf $@
+    install_file $_directory_ $_source_ $_target_
+    perl -pi $BASE/paths.pl $_directory_/$_target_
+}
+
+function install_other () {
+    _directory_=$1
+
+    if [ ! -z "$_debug" ] && [ $_debug = 1 ]; then
+        echo "  Updating other..."   
+    fi
+
+    for file in `get_files`; do
+        d=`is_used $file`
+        if [ $d == 0 ]; then
+	    install_file $_directory_ $file
+        fi
+    done
+}

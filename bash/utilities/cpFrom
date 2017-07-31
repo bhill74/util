@@ -1,0 +1,21 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+SITE=$1
+HOST=`${CELLGEN}/bin/machine -s ${SITE} -1 -c all`
+
+LOCATION=$2
+if [ -z "$LOCATION" ]; then
+   source ${CELLGEN}/bin/browse
+   DIR=`rsh ${HOST} pwd`/public
+   browseFile $DIR $SITE
+fi
+
+DESTINATION=$3
+if [ -z "$DESTINATION" ]; then
+    DESTINATION=${HOME}/public
+fi
+
+echo "Copying ${LOCATION} from ${SITE} (via ${HOST}) to ${DESTINATION}"
+rcp ${HOST}:$LOCATION ${DESTINATION}

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+${HOME}/util/util/pathsu | while read line; do	
+    find "$line" -maxdepth 1 -mindepth 1 $@ 2>/dev/null || {
+	   pushd "$line" >/dev/null 2>&1
+	   find . -name . -o -type d -prune -o $@ -print 2>/dev/null | sed "s|^\./|$line/|"
+    }
+done

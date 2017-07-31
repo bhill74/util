@@ -1,0 +1,12 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+set -a
+for gdsFile in *.gds
+do
+   structureName=`gdsFindTop $gdsFile`
+   cellName=`echo $gdsFile | sed -e 's,.gds$,,'`
+   rm $cellName.ps > /dev/null 2>&1
+   /remote/artwork/makePlot -noheader -nolegend -noruler -out $cellName.ps -map gdsplot.map -paper A -structure $structureName $cellName.gds 
+done

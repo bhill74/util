@@ -1,0 +1,12 @@
+#!/depot/php-4.3.5/bin/php -q
+<?php
+
+$site = $argv[1];
+if ($site == '') {
+	$site = trim(shell_exec("/usr/local/bin/siteid"));
+}
+
+$cmd="http://${site}wwwin/~bhill/util/run_cmd.php?type={$argv[2]}&dir={$argv[3]}";
+print file_get_contents($cmd);
+
+?>

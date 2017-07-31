@@ -1,0 +1,14 @@
+#!/bin/bash
+. ${HOME}/util/process/process.sh
+process
+
+rm tmp.txt
+for file in `dircmp $1 $2 | grep different | grep -v '.o' | grep -v Makefile | awk '{print $2}'`
+do
+   echo "" >> tmp.txt
+   echo "" >> tmp.txt
+   echo "---------- Comparing $file ----------" >> tmp.txt
+   diff $1/$file $2/$file >> tmp.txt
+done
+
+more tmp.txt
