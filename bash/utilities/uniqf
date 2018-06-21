@@ -1,0 +1,26 @@
+#!/bin/bash
+
+fname=$1
+if [ -d "$fname" ]; then
+   $0 "${fname}/new"
+   exit
+fi
+
+if [ ! -e "$fname" ]; then
+   echo $fname
+   exit
+fi
+
+# Separate the file name
+ext=${fname##*.}
+base=$(echo $fname | sed "s/\.${ext}$//")
+mname="${base}.${ext}"
+index=1
+
+# Continue until a new filename is found.
+while [ -e "$mname" ]; do
+   mname="${base} (${index}).${ext}"
+   ((index = index + 1))
+done
+
+echo $mname
