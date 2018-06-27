@@ -1,0 +1,25 @@
+#!/bin/bash
+
+src=$1
+tgt=$2
+
+D=$(diff "$src" "$tgt" 2>&1 | awk '{print $NF}')
+if [ "$D" == "denied" ]; then
+   src_size=$(ls -l "$src" | awk '{print $5}')
+   tgt_size=$(ls -l "$tgt" | awk '{print $5}')
+   echo $src_size $tgt_size
+   if [ $src_size -ne $tgt_size ]; then
+      echo differ
+      exit
+   fi
+
+   mtgt=$(echo "$tgt" | sed "s|/cygdrive/n/|/archive/webdav/|")
+   ssh pi@192.168.2.182 "ls -l '$mtgt'"
+   D=$(ssh pi@192.168.2.182 "cat '$mtgt'" | diff - "$src")
+fi
+
+if [ -z "$D" ]; then
+   echo same
+else
+   echo $D
+fi

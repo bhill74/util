@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ ! -t 0 ]; then
+   echo "From Input..."
+   while read line; do
+      eval $(echo $@ | sed "s|{}|'$line'|")
+   done
+else
+   pattern=$1
+   shift
+   echo "Searching..."
+   find . -type d -name .DAV -prune -o -name "*.${pattern}" -print | while read file; do
+      eval $(echo $@ | sed "s|{}|'$file'|")
+   done
+fi
+

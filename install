@@ -23,6 +23,7 @@ clear $HOME/bash
 clear $HOME/tcl
 clear $HOME/lib
 clear $HOME/util
+clear $HOME/media
 
 clear $HOMEWWW/php
 clear $HOMEWWW/js

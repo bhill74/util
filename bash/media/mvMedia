@@ -1,0 +1,18 @@
+#!/bin/bash
+file=$1
+dir=$2
+
+folder=$(${HOME}/util/media/folder "$file")
+if [ -z "$folder" ]; then
+   echo "Bad folder for $file"
+   exit
+fi
+
+base=$(basename "$file")
+echo "Moving $file to $folder"
+loc="$(realpath -s $dir)/${folder}"
+if [ ! -d "${loc}" ]; then
+   mkdir -p "${loc}"
+fi
+
+${HOME}/util/util/mmv "$file" "$loc"

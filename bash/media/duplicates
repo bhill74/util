@@ -1,0 +1,39 @@
+#!/bin/bash
+
+del=0
+if [ ! -z "$1" ]; then
+   del=$1
+fi
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+PURPLE='\033[0;35m'
+NC='\033[0m'
+declare -a family 
+${HOME}/util/media/basenames | while read file; do
+   ext=${file##*.}
+   base=$(echo "$file" | sed "s/\.${ext}$//")
+   family=() 
+   while read i; do
+      family=( "${family[@]}" "$i" )
+   done < <(ls "${base}"*.${ext} | awk '{print length, ":", $0}' | sort -n -s | cut -d: -f2)
+   if [ ${#family[@]} -le 1 ]; then
+      continue
+   fi
+   first=${family[0]}
+   echo "Comparing to $first"
+   for i in "${family[@]}"; do
+      if [ "$i" != "$first" ]; then
+         D=$(${HOME}/util/media/cmpMedia "$i" "$first")
+         if [ "$D" == "same" ]; then
+            echo -e "  ${RED}duplicate${NC}: $i"
+            if [ $del -gt 0 ]; then
+               echo -e "  ${PURPLE}deleting${NC} $i"
+               rm "$i"
+            fi
+         else
+            echo -e "  ${GREEN}different${NC}: $i"
+         fi
+      fi
+   done
+done

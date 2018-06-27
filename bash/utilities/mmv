@@ -1,0 +1,16 @@
+#!/bin/bash
+
+tgt=${@: -1:1}
+src=${@: -2:1}
+set -- "${@:1:$(($#-2))}"
+
+if [ -e "$tgt" ] && [ ! -d "$tgt" ]; then
+   tgt=$(${HOME}/util/util/uniqf "$tgt")
+else
+   if [ -d "$tgt" ]; then
+      base=$(basename "$src")
+      tgt=$(${HOME}/util/util/uniqf "$tgt/$base")
+   fi
+fi
+
+mv --verbose $@ "$src" "$tgt"
