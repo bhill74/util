@@ -1,0 +1,62 @@
+#!/bin/env perl
+
+use Getopt::Long;
+@optionList = ( "file=s", "lines=s", "output=s", "double!",
+		"f=s", "l=s", "o=s", "d!" );
+GetOptions( @optionList );
+
+$opt_file = $opt_f if ( $opt_f );
+$opt_lines = $opt_l if ( $opt_l );
+$opt_output = $opt_o if ( $opt_o );
+$opt_double = $opt_d if ( $opt_d );
+
+unless ( -e $opt_file ) {
+  die "The file $opt_file must exist";
+}
+
+$tmpFile = ".tmpFile";
+die "TMP file already exists\n" if ( -e $tmpFile );
+
+$opt_lines =~ s/\s//g;
+@lines;
+foreach $range ( split( /,/, $opt_lines ) ) {
+  $command;
+  if ( $range =~ /(\d+)\-(\d+)/ ) {
+    print STDERR "$1 $2\n";
+
+    $start = $1;
+    $stop = $2;
+    if ( $stop > $start ) {
+      $command = "head -$stop $opt_file";
+      $command .= "| tail -".($stop-$start+1)." ";    
+    }
+  } elsif ( $range =~ /(\d+)/ ) {
+    $number = $1;
+    $command = "head -$number $opt_file | tail -1 ";
+  }
+  $command .= ">> $tmpFile" if ( $command );
+  system( $command );
+}
+
+if ( -e $tmpFile ) {
+  $command = "enscript ";
+  $command .= " -2r " if ( $opt_double );
+  $command .= " -o $opt_output ";
+  $command .= " $tmpFile";
+  system( $command );
+}
+
+`rm $tmpFile`;
+
+#$command = "head -$opt_stop $opt_file";
+#$command .= "| tail -".($opt_stop-$opt_start)." ";
+#if ( $opt_output ) {
+#   $command .= "| enscript ";
+#   $command .= " -2r " if ( $opt_double );
+#   $command .= " -o $opt_output";
+#   `$command`;
+#} else {
+#   undef $/;
+#   print `$command`;
+#   $/ = "\n";
+#}

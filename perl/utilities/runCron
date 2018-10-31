@@ -1,0 +1,25 @@
+#!/bin/env perl
+
+use lib "$ENV{HOME}/perl/lib";
+use Menu;
+$menu = Menu->new;
+
+my @cron=`crontab -l`;
+my @options = ();
+
+foreach $job ( @cron ) {
+  chomp( $job );
+  $job =~ s/^(([\*0-9,]+)\s+){5}//;
+  push( @options, $job );
+}
+
+$menu->choices( @options );
+$menu->preMessage( "Choose the job(s) to execute:" );
+$menu->type( 'selectionMultiple' );
+@choices = $menu->prompt;
+
+foreach $choice ( @choices ) {
+  print "Executing ($choice)\n";
+  `$choice`;
+  print "\n";
+}

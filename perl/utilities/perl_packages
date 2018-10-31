@@ -1,0 +1,28 @@
+#!/depot/perl-5.8.3/bin/perl
+
+use lib "$ENV{HOME}/perl/lib";
+use lib "/remote/crmhome1/support-cq2/perlmod/lib";
+
+use strict;
+use ExtUtils::Installed;
+use Sys::Hostname;
+
+print "Include:\n";
+foreach my $incDir (@INC){
+  print "\t$incDir\n";
+}
+
+my $host = hostname();
+print "Host: $host\n";
+
+my $instmod = ExtUtils::Installed->new();
+my @modules = $instmod->modules();
+
+print "Total: $#modules modules\n";;
+my $pattern = "\t%-25s\t%-10s\t%s\n";
+printf( $pattern, 'Module', 'Version', 'Location' );
+foreach my $module ($instmod->modules()) {
+  my $version = $instmod->version($module) || "???";
+  my( $directory ) = $instmod->directories($module);
+  printf( $pattern, $module, $version, $directory );
+}

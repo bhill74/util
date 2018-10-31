@@ -1,0 +1,28 @@
+#!/bin/env perl
+
+use Getopt::Long;
+my @optionList = ( "s=s", "site=s",
+		   "u=s", "user=s" );
+GetOptions( @optionList );
+
+my $site = ( $opt_site || $opt_s || $ENV{SITE} );
+my $user = ( $opt_user || $opt_u || $ENV{USER} );
+
+$command = "cd ~${user};qdf .";
+if ( $site ne $ENV{SITE} ) {
+  ( $machine ) = `$ENV{CELLGEN}/bin/machine -s ${site} -1`;
+  chomp $machine;
+  if ( $machine eq '' ) {
+     die "No host found for ${site}";
+  }
+  $command = "rsh ${machine} \"${command}\"";
+}
+
+undef $/;
+$result = `$command 2>/dev/null`;
+
+if ( $result =~ m|(\w+):\S+\s+Mounted\s+on:\s*/remote/(\w+)|i ) {
+   $host = $1;
+   $path = $2;
+   print "\\\\${host}\\${path}\\${user}";
+}

@@ -1,0 +1,4 @@
+#!/bin/env perl
+foreach $i ( 0..255 ) {
+   printf( "%d - %s\n", $i, pack( 'c', $i ) ) if ( $i != 145 );
+}

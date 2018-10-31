@@ -1,0 +1,121 @@
+#!/bin/env perl
+
+use lib "$ENV{HOME}/perl/lib";
+use lib "/opt/gnu/lib/perl5/site_perl/5.6.0";
+
+use Menu;
+my $menu = Menu->new;
+
+# Get the MIME packages for building emails.
+use MIME::Parser;
+use MIME::Entity;
+
+# Process command line arguments.
+use Getopt::Long;
+@optionList = ( "to=s", "subject=s", "body=s", "separate!" );
+GetOptions(@optionList);
+
+# Resolve the TO.
+unless ( $opt_to ) {
+  my $result = `id`;
+  if ( $result =~ /uid\=\d+\((\w+)\)/i ) {
+    my $email = "$1\@" . `domainname`;
+    chomp $email;
+    $menu->default( $email );
+    $menu->type( 'string' );
+    $menu->preMessage( "What email address(es) do you want to send to?" );
+    ( $opt_to ) = $menu->prompt;
+  }
+}
+
+# Resolve the Subject.
+unless ( $opt_subject ) {
+  $menu->default( "Test Msg" );
+  $menu->type( 'string' );
+  $menu->preMessage( "What subject should be included in the message header?" );
+  ( $opt_subject ) = $menu->prompt;
+}
+
+# Resolve the Files.
+my @files = @ARGV;
+if ( scalar( @files ) ) {
+  $menu->default( '' );
+  $menu->choices( @files );
+  $menu->preMessage( "Choose the files to attach:" );
+  $menu->type( 'selectionMultiple' );
+  @files = $menu->prompt;
+}
+
+# Resolve the Body.
+my $default = 0;
+unless ( $opt_body ) {
+  $default = 1;
+  if ( scalar( @files ) ) {
+    $menu->default( 'File Attachment' );
+  } else {
+    print STDERR "There are no file names or body text provided - the email messages would be empty\n";
+    exit 1;
+  }
+  $menu->type( 'string' );
+  $menu->preMessage( "What body text should be included in the message?" );
+  ( $opt_body ) = $menu->prompt;
+}
+
+my $mail = 0;
+
+if ( !$default ) {
+  # Create the message.
+  $mail = MIME::Entity->build( To      => $opt_to,
+			       Subject => $opt_subject,
+			       Data    => $opt_body );
+}
+
+if ( $opt_separate && $mail ) {
+  # Send the message.
+  open MAIL, "| /usr/lib/sendmail -t";
+  $mail->print( \*MAIL );
+  close MAIL;
+}
+
+# Process each of the attached files.
+foreach $file ( @files ) {
+  # Create the message.
+  if ( !$mail || $opt_separate ) {
+    my $subject = $opt_subject;
+    if ( $opt_separate ) {
+      $subject =~ s/\s*$/ ($file)/;
+    }
+
+    my $body = $opt_body;
+    $body = "File Attachment" unless ( $body );
+    if ( $opt_separate ) {
+      $body =~ s/\s*$/\n($file)/;
+    }
+
+    $mail = MIME::Entity->build( To      => $opt_to,
+				 Subject => $subject,
+				 Data    => $body );
+  }
+
+  # Attach the files to the email message.
+  $mail->attach( Path => $file,
+		 Encoding => "Base64" );
+
+  if ( $opt_separate ) {
+    # Send the message.
+    print STDERR "Sending $file\n";
+    open MAIL, "| /usr/lib/sendmail -t";
+    $mail->print( \*MAIL );
+    close MAIL;
+  } else {
+    print STDERR "Attached $file\n";
+  }
+}
+
+if ( !$opt_separate && $mail ) {
+  # Send the message.
+  open MAIL, "| /usr/lib/sendmail -t";
+  $mail->print( \*MAIL );
+  close MAIL;
+}
+

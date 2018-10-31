@@ -1,0 +1,7 @@
+#!/bin/env perl
+
+use lib "/opt/gnu/lib/perl5/site_perl/5.6.0";
+use LWP::Simple;
+
+$url = $ARGV[0];
+print STDOUT get( $url );

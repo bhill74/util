@@ -1,0 +1,221 @@
+#!/bin/env perl
+
+use lib "/remote/ca09h1/bhill/perl/lib";
+use Menu;
+$menu = Menu->new;
+
+use LWP;
+
+use Time::Local;
+use Getopt::Long;
+@optionList = ( "output=s", "minutes=s", "verbose!", "local!" );
+GetOptions(@optionList);
+
+my $MINUTES = 15;
+if ( $opt_minutes > $MINUTES ) {
+  $MINUTES = $opt_minutes;
+}
+
+my $result;
+$result .= "<html>\n";
+$result .= "<head><title>Flight Timetable</title>\n";
+$result .= "<body>\n";
+$result .= "<table border=1>\n";
+
+my $source = '';
+my %DELTA;
+my %START;
+my %END;
+my %DATES;
+my %CITY;
+my %TIME;
+my %TRAVEL;
+
+foreach $line ( <> ) {
+  chomp $line;
+  if ( $line eq '' ) {
+    next;
+  }
+
+  my ( $depart, $arrive ) = split( /\s*\<\-\>\s*/, $line );
+
+  my @timeD = &getData( $depart );
+  my @timeA = &getData( $arrive, @timeD );    
+}
+
+my @dates = sort( keys %DATES );
+my @times;
+my ( $h, $m ) = ( 0, 0 );
+for( $h = 0; $h < 24; $h += 1 ) {
+  for( $m = 0; $m < 60; $m += $MINUTES ) {
+    push( @times, sprintf( "%02d:%02d:00", $h, $m ) );    
+  }
+}
+
+my $columns = scalar( @dates ) + 1;
+my $row, $column;
+
+$result .= "<tr>\n<th>Time</th>\n";
+foreach $date ( @dates ) {
+  $result .= "<th>$date</th>\n";
+}
+$result .= "</tr>\n";
+
+my %flying;
+
+for ( $row = 0; $row <= $#times; $row++ ) {
+  my $time = $times[$row];
+  for ( $column = 1; $column < $columns; $column++ ) {  
+    my $date = $dates[$column-1];  
+    if ( $START{$date,$time} ) {
+      $flying[$column] = 1;
+    } elsif ( $END{$date,$time} ) {
+      $flying[$column] = 0;
+    }
+  }
+}
+
+for( $column = $columns - 1; $column > 0; $column-- ) {
+  $flying[$column] = $flying[$column-1];
+}
+
+for ( $row = 0; $row <= $#times; $row++ ) {
+  my $time = $times[$row];
+  my $nextTime = $times[$row+1];
+  my $prevTime = $times[$row-1];
+
+  $result .= "<tr>\n<td><b><i>$time</b></i></td>\n";
+  for ( $column = 1; $column < $columns; $column++ ) {  
+    my $date = $dates[$column-1];
+    if ( $START{$date,$time} ) {
+      $flying[$column] = 1;
+    } 
+
+    $result .= "<td halign=\"center\"";
+    if ( $flying[$column] ) {
+      $result .= " bgcolor=\"#AA00EE\"";
+    }
+    $result .= ">";
+
+    if ( !$flying[$column] ) {
+      if ( $CITY{$date,$nextTime} ) {
+	$result .= "Leaving $CITY{$date,$nextTime}";
+      } elsif ( $START{$date,$prevTime} && ( $opt_verbose || $opt_local ) ) {
+	my $localTime = $TIME{$date,$prevTime};
+	$localTime =~ s| \($date\)||g;
+	$result .= "<b><i>Local:</i> $localTime</b>";
+      }
+    } else {  
+      if ( $START{$date,$time} ) {
+	if ( $opt_verbose || $opt_local ) {
+	  my $localTime = $TIME{$date,$time};
+	  $localTime =~ s| \($date\)||g;
+	  $result .= "<b><i>Local:</i> $localTime</b>";
+	}
+      } elsif ( $END{$date,$time} ) {
+	my $city = $CITY{$date,$time};
+	$result .= "Arriving $city";
+	if ( $opt_verbose && $DELTA{$city} != 0 ) {
+	  $result .= " <font color=\"#AA0000\">[$DELTA{$city} hours difference from $source]</font>";
+	}
+	
+	if ( $opt_verbose || $opt_local ) {
+	  my $localTime = $TIME{$date,$time};
+	  $localTime =~ s| \($date\)||g;
+	  $result .= "<br><b><i>Local:</i> $localTime</b><br>";
+	}
+
+	$result .= "$TRAVEL{$date,$time}";
+      }
+    }
+
+    $result .= "&nbsp;"; 
+    $result .= "</td>\n";
+
+    if ( $END{$date,$time} ) {
+      $flying[$column] = 0;
+    }
+  }
+  $result .= "</tr>\n";
+}
+
+sub getData {
+  my $location = shift; 
+
+  my ( $city, $date, $time ) = split( /\s*,\s*/, $location );
+  my ( $city, $delta ) = ( $city =~ /(.*?)\s*(\[(\-*\d+)\])?$/ )[0,2];
+
+  print "CITY $city $delta ($location)\n";
+
+  if ( $delte ne '' && $delta eq '0' ) {
+    $source = $city;
+    $DELTA{$city} = 0; 
+  } elsif ( $delta eq '' && !defined( $DELTA{$city} ) ) {
+    $menu->default( 0 );
+    $menu->preMessage( "What is the time difference between $city and $source?" );
+    $menu->type( 'string' );
+    $DELTA{$city} = $menu->prompt;
+  } elsif ( $delta ne '' ) {
+    $DELTA{$city} = $delta;
+  }
+
+  my @time = &addDelta( $date, $time, -$DELTA{$city} );
+  my ( $second, $minute, $hour, $day, $month, $year ) = @time;
+  $year += 1900;
+  $month++;
+
+  $newDate = sprintf( "%02d/%02d/%04d", $month, $day, $year );
+  $minute = $minute - ( $minute % $MINUTES );
+  $newTime = sprintf( "%02d:%02d:%02d", $hour, $minute, $second );  
+
+#  print "$time (" . -$DELTA{$city} . ") = $newTime ";
+#  if ( $date ne $newDate ) {
+#    print "($date -> $newDate)";
+#  }
+#  print "\n";
+
+  $CITY{$newDate,$newTime} = $city;
+  $TIME{$newDate,$newTime} = "$time ($date)";
+  $DATES{$newDate} = 1;
+
+  my @start = @_; 
+  if ( @start ) {
+    $END{$newDate,$newTime} = 1;    
+    my $timeD = timelocal( @start );
+    my $timeA = timelocal( @time ); 
+    my $delta = ( $timeA - $timeD );
+    $TRAVEL{$newDate,$newTime} = sprintf( "<b><i>Total %.2f hours</b></i>", $delta/60/60 );
+  } else {
+    $START{$newDate,$newTime} = 1;      
+  }
+
+  return @time;
+}
+
+sub addDelta {
+  my $date = shift;
+  my $time = shift;
+  my $delta = shift;
+
+  my ( $month, $day, $year ) = split( /\//, $date );
+  my ( $hour, $minute, $second ) = split( /:/, $time );
+  $month--;
+
+  my $time = timelocal( $second, $minute, $hour, $day, $month, $year );
+  $time += $delta*60*60;
+  ( $second, $minute, $hour, $day, $month, $year ) = localtime( $time );
+
+  return ( $second, $minute, $hour, $day, $month, $year );
+}
+
+$result .= "</table>\n";
+$result .= "</body>\n";
+$result .= "</html>\n";
+
+if ( $opt_output ne '' ) {
+  'rm $opt_output';
+  if ( open( OUTPUT, ">$opt_output" ) ) {
+    print OUTPUT $result;
+    close OUTPUT;
+  }
+}

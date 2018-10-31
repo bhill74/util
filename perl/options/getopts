@@ -1,0 +1,108 @@
+#!/bin/env perl
+
+use lib "$ENV{HOME}/lib/perl";
+use debug;
+use Getopt::Long;
+Getopt::Long::Configure("pass_through");
+
+my $argLen = $#ARGV;
+@ARGV = ( grep( $_ ne '--basic', @ARGV ) );
+my $basic = ( $argLen != $#ARGV );
+
+#print join( "-\n-", @ARGV ). "\n";
+
+my $input = shift(@ARGV);
+
+my %opts;
+my $command = '';
+if ( $input =~ /^(\w+)\@/ ) {
+  $input = $';
+  $command = $1;
+}
+
+my $item, %args, %types;
+foreach $item ( split( ':', $input ) ) {
+  my ( $name, $type );
+  if ( $item =~ /^([\w|]+)=(.*)/ ) {
+    $name = $1; $type = $2;
+  } elsif ( $item =~ /^([\w|]+)(\!)/ ) {
+    $name = $1; $type = $2;
+  }
+
+  $name =~ s/\|.*//;
+  $types{$name} = $type;
+  #print "ITEM [$item] - $name - $type\n";
+
+  if ( $name ne `` ) {
+    # If the data is boolean, then store a scalar. Otherwise
+    # account for multiple possibilities.
+    if ( $type eq '!' ) {
+      $opts{$name} = 0;
+      $args{$item} = \$opts{$name};
+    } elsif ( $item =~ /\{(\d+)?\}$/ ) {
+      $args{$item} = \@{$opts{$name}};
+    } else {
+      $args{$item} = \$opts{$name};
+    }
+  }
+}
+
+#Debug::print_r(\%args);
+#print "\n";
+
+if ( $command ne '' && !$basic ) {
+  foreach $line ( `$ENV{HOME}/util/options/options -c $command` ) {
+    chomp $line;
+    #print "-- $line\n";
+    my( $arg, $value ) = ( $line =~ /^\w+\.(\w+)=(.*)/ );
+    if ( ref($opts{$arg}) eq 'ARRAY' ) {
+      push @{$opts{$arg}}, $value;
+    } else {
+      $opts{$arg} = $value;
+    }
+  }
+}
+
+my $sh = 'sh';
+if ( $ARGV[0] eq '-csh' ) {
+  shift @ARGV;
+  $sh = 'csh';
+} elsif ( $ARGV[0] eq '-sh' ) {
+  shift @ARGV;
+}
+
+#Debug::print_r(\%opts);
+#print "\n";
+
+{
+  local $SIG{__WARN__} = sub {};
+  GetOptions( %args );
+}
+
+foreach $arg ( sort keys %opts ) {
+  display( $sh, $arg, $opts{$arg} );
+}
+
+display( $sh, "_args_", join( " ", @ARGV ) );
+
+sub display {
+  my( $sh, $name, $value ) = @_;
+  if ( ref( $value) eq 'ARRAY' ) {
+    $value = join( ":", @{$value} );
+  }
+  if ($value eq '') {
+    return
+  }
+
+  $value =~ s/([^\\])"/$1\\"/g;
+
+  if ( $value =~ /\W/ ) {
+    $value = "\"$value\"";
+  }
+
+  if ( $sh eq 'sh' ) {
+    print "$name=$value\n";
+  } else {
+    print "setenv $name $value\n";
+  }
+}

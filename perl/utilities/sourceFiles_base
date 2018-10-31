@@ -1,0 +1,68 @@
+#!/usr/bin/env perl
+
+# -----------------------------------------------------------------------
+# Process command line arguments
+use Getopt::Long;
+@optionList = ( "h!", "help!",
+		"e=s", "exclude=s",
+		"v!", "verbose!",
+		"csh!" );
+GetOptions(@optionList);
+$opt_help = ($opt_h || $opt_help);
+$opt_exclude = ($opt_e || $opt_exclude);
+$opt_verbose = ($opt_v || $opt_verbose);
+
+use lib "$ENV{HOME}/perl/lib";
+require "script_base.pl";
+
+#**************************************************
+#%FUNCTION: sourceFiles_base
+#%DESCRIPTION: Sources all the files
+# in a given directory.
+#%ARGUMENTS:
+# [h/help] To display the usage information.
+# [e/exclude] The file names to exclude, separated by commas
+# [v/verbose] To be verbose about which files are being
+# sourced
+# [csh] -- Then the output will be used by CSH, otherwise
+# SH is assumed.
+#%RETURNS:
+# Commands to be interpretted by a shell.
+#**************************************************
+if ( $opt_help ) {
+  $help =  "Sources all the files in a given directory.\n";
+  $help .= "  -h[elp] -- Display this information\n";
+  $help .= "  -e[xclude] -- The files to exclude, separated by commas\n";
+  $help .= "  -v[erbose] -- To be verbose about which files are being sourced\n";
+  $help .= "usage: sourceFiles <directory>\n";
+  print process_base_msg( $help );
+  exit;
+}
+
+my $path = $ARGV[0];
+$path =~ s|/+$||g;
+
+my %exclude;
+@exclude{split( /,+/, $opt_exclude )} = ();
+
+foreach $file ( `cd ${path};ls -d *` ) {
+  chomp $file;
+
+  if ( ! -e "${path}/${file}" ) {
+    next;
+  }
+
+  if ( -d "${path}/${file}" ) {
+    next;
+  }
+
+  if ( exists( $exclude{$file} ) ) {
+    next;
+  }
+
+  if ( $opt_verbose ) {
+    print process_base_msg( "Sourcing '$file'" ) . ";";
+  }
+
+  print "source ${path}/${file};";
+}

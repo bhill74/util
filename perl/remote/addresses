@@ -1,0 +1,32 @@
+#!/bin/env perl
+
+print join( "\n", ipAddresses($ARGV[0]) );
+
+sub ipAddresses {
+  my( $ip ) = shift;
+  my @nums = split( /\./, $ip );
+  my @ids;
+
+  foreach $num1 ( getNums($nums[0]) ) {
+    foreach $num2 ( getNums($nums[1]) ) {
+      foreach $num3 ( getNums($nums[2]) ) {
+	foreach $num4 ( getNums($nums[3]) ) {
+	  push @ids, "$num1.$num2.$num3.$num4";
+	}
+      }
+    }
+  }
+
+  return @ids;
+}
+
+sub getNums {
+  my( $value ) = shift;
+  if ( $value =~ /^\d+$/ ) {
+    return $value;
+  }
+  if ( $value =~ /^(\d+)-(\d+)$/ ) {
+    return ( ${1}..${2} );
+  }
+  return split( ',', $value );
+}

@@ -1,0 +1,71 @@
+#!/bin/env perl
+
+# PROGRAM DESCRIPTION
+# -------------------
+# This program prints the modification times and names of files.
+# It uses the following format:  inodetime.pl filename
+# It will accept:  inodetime.pl filename1 filename2 filename3
+#                  inodetime.pl /tmp/file*
+# The format of the output is: YYYYMMDDhhmmss filename
+# example:
+#           $ inodetime.pl /tmp/t*
+#           19961115105425 /tmp/test.sql
+#           19970116113616 /tmp/tststat.pl
+#
+####################################################################
+
+sub getMTime() {
+  my $file = shift;
+  my @files = ();
+  if ( -e $file ) {
+    if ( -d $file ) {
+      @files = `find $file/. -type d`;
+    }
+    push( @files, $file );
+  }
+
+  if ( scalar @files == 0 ) {
+    return 0;
+  }
+
+  # Get the (next) input from the command line
+  foreach $file ( @files ) {
+    chomp $file;
+
+    # stat structure into variables
+    my $mtime = ( stat( $file ) )[9];
+
+    # time structure into variables
+    local ( $second, $minute, $hour, $day, $month, $year, $weekday, @dummy ) = localtime( $mtime );
+    $year = ($year>=70) ? $year+1900 : $year+2000;
+    $month++;
+    my $date = sprintf( "%d/%02d/%02d/%02d/%02d/%02d/%02d", $year, $month, $day, $hour, $minute, $second );
+    $files{$date} = $file;
+    push( @dates, $date );
+
+    # Print modification date and filename
+    print ("$date $file\n");
+  }
+
+  @dates = sort reverse @dates;
+  my $date = $dates[0];
+  #return $date;
+
+  print "Date $date\n";
+  return  ( stat( $files{$date} ) )[9];
+}145.dpt]`
+
+my $mtime = &getMTime( $ARGV[0] );
+print "$mtime\n";
+
+my $shift = time() - $opt_delta * 60 * 60 * 24;
+print "Diff $diff\n";
+
+my $years =
+my $months =
+my $days =
+my $hours = int( $diff/3600 );
+my $minutes = int( ( $diff - 3600*$hours )/60);
+my $seconds = ( $diff - 60*$minutes );
+
+print "$hours - $minutes - $seconds\n";

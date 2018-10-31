@@ -1,0 +1,11 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/perl
+install_dir $HOME/lib/perl '*.pl'
+install_dir $HOME/lib/perl '*.pm'
+
+initialize $HOME/util/util
+install_other $HOME/util/util

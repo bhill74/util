@@ -1,0 +1,130 @@
+#!/bin/env perl
+
+use lib ".";
+use lib "$ENV{HOME}/perl/comics";
+use lib "$ENV{HOME}/perl/lib";
+use lib "$ENV{HOME}/perl_lib/lib";
+use lib "$ENV{HOME}/perl_lib/lib/site_perl";
+use lib "$ENV{HOME}/perl_lib/lib/perl5/site_perl";
+use Getopt::Long;
+GetOptions( "day=s", "email=s", "file=s", "verbose!", "debug!", "v!" );
+
+use MIME::Parser;
+use MIME::Entity;
+
+#############################################################
+# Utility: comics
+#
+# This utility is designed to process a bunch of web sites and
+# extract the comic graphic address and include it in an email
+# message.
+#
+# The message will be a consolidation of all the daily comics.
+#
+#############################################################
+
+# Check the addresses.
+my $email = $opt_email;
+if ($email eq '') {
+  die "There is no email address(s) provided";
+}
+
+# Check the file;
+my $file = $opt_file;
+if (! -e $file) {
+  die "There is no comics file provided";
+}
+
+$opt_verbose = ( $opt_verbose || $opt_v );
+
+$opt_day = '0' unless ( $opt_day );
+my @days = split( ',',  $opt_day );
+
+foreach $day ( @days ) {
+  if ( $opt_verbose ) {
+    print STDERR "Processing comics from ";
+    if ( $day == 0 ) {
+      print STDERR "today";
+    }else {
+      print STDERR sprintf( "$day day%s ago", ( $day > 1 ) ? "s" : "" );
+    }
+    print STDERR "\n";
+  }
+
+  # Build the mail message.
+  my $message = "<html>\n<body>\n";
+
+  foreach $line ( `cat $file` ) {
+    chomp( $line );
+    if ($opt_debug) {
+      print STDERR "LINE - $line\n";
+    }
+
+    my( $title, $type, @data ) = split( ',', $line );
+    if ($type ne 'dilbert' &&
+	$type ne 'comics' &&
+	$type ne 'ucomics' &&
+	$type ne 'fborfw' &&
+	$type ne 'slagoon' &&
+        $type ne 'pgs' &&
+        $type ne 'xkcd' ) {
+      next;
+    }
+    if ( $opt_verbose ) {
+      print STDERR " Processing '$title' from $type\n";
+    }
+
+    do "${type}.pl";
+
+    my $count = 1;
+    while( $count < 6 ) {
+      my $archive = getArchive( @data, $day );
+      if ($archive ne '') {
+	$message .= "\n\n<h1><a href=\"$archive\">$title</a></h1>\n";
+	$message .= getTag( $title, @data, $day );
+	last;
+      } elsif ( $opt_verbose ) {
+	print STDERR "  Reattempting\n";
+      }	
+      $count++;
+    }
+  }	
+
+  $message .= "</body>\n</html>\n";
+
+  my ( $cday, $month, $year ) = ( localtime(time - $day*24*60*60) )[3,4,5];
+
+  if ( $opt_verbose ) {
+    print STDERR "Sending to $email\n";
+  }
+
+  my $mail = MIME::Entity->build( To      => $email,	
+				  Subject => sprintf( "Comics for %02d/%02d/%02d", $cday, $month+1, $year%100 ),
+				  Data    => $message,
+				  Type    => 'text/html' );
+  open MAIL, "| /usr/lib/sendmail -t";
+  $mail->print( \*MAIL );
+  close MAIL;
+}
+
+sub getTag {
+  my $title = shift;
+  my $url = getImage( @_ );
+  if ( $url ne '' ) {
+    return "<img src=\"$url\" atl=\"$title\">\n";
+  }
+
+  my $width, $height;
+  ( $url, $width, $height ) = getFlash( @_ );
+  if ( $url ne '' ) {
+    my $output = sprintf( "<object classid=\"clsid:%s\" codebase=\"http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=8,0,0,0\" width=\"$width\" height=\"$height\">\n", join( '', localtime ) );
+    $output .= "<param name=\"movie\" value=\"$url\" />\n";
+    $output .= "<param name=\"qualit\y\" value=\"high\" />\n";
+    $output .= "<embed src=\"$url\" width=\"$width\" height=\"$height\" quality=\"high\" pluginspage=\"http://www.macromedia.com/go/getflashplayer\" type=\"application/x-shockwave-flash\">\n";
+    $output .= "</embed>\n";
+    $output .= "</object>\n";
+    return $output;
+  }
+
+  return "";
+}

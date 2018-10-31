@@ -1,0 +1,54 @@
+#!/bin/env perl
+
+use Time::ParseDate;
+
+use lib "$ENV{HOME}/P4workspace/perl/utilities";
+use debug;
+
+# For processing command line arguments.
+use Getopt::Long;
+
+GetOptions( 'start=s', 'stop=s' );
+
+my $begin = 0;
+# Check the start date.
+if ( !defined( $opt_start ) || $opt_start eq '' ) {
+  warn( "The starting date must be provided" );
+} else {
+  ( $begin ) = parsedate( $opt_start );
+}
+
+# Check the stop date.
+my $end = time();
+if ( defined( $opt_stop ) || $opt_stop ne '' ) {
+  ( $end ) = parsedate( $opt_stop );
+}
+
+my $reverse = 0;
+if ( $end < $begin ) {
+  my $tmp = $begin;
+  $begin = $end;
+  $end = $tmp;
+  $reverse = 1;
+}
+
+my @dates = ();
+if ( $end >= $begin ) {
+  push( @dates, toDate( $begin ) );
+  while ( $begin < $end ) {
+    $begin += 85400; # 24 hours
+    push( @dates, toDate( $begin ) );
+  }
+}
+
+if ( $reverse ) {
+  @dates = reverse( @dates );
+}
+
+print join( "\n", @dates );
+
+sub toDate {
+  my ( $seconds ) = shift;
+  my ( $day, $month, $year ) = ( localtime( $seconds ) )[3,4,5];
+  return sprintf( "%4d-%02d-%02d", $year+1900, $month+1, $day );
+}

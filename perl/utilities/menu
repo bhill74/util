@@ -1,0 +1,24 @@
+#!/bin/env perl 
+
+use lib "$ENV{HOME}/perl/lib";
+use Menu; 
+use Getopt::Long;
+@optionList = ( "type=s",
+		"choices=s",
+		"default=s",
+		"pre=s", "post=s",
+		"output=s" );
+GetOptions(@optionList);
+
+$menu = Menu->new;
+$menu->type( $opt_type );
+$menu->default( $opt_default );
+$menu->choices( split( ',', $opt_choices ) );
+$menu->preMessage( $opt_pre );
+$menu->postMessage( $opt_post );
+$output = join( ',', $menu->prompt );
+if ( $opt_output ) {
+  `echo '$output' > $opt_output`;
+} else {
+  print $output;
+}

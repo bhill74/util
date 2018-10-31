@@ -1,0 +1,257 @@
+#!/bin/env perl
+
+use Fcntl qw(:mode);
+
+#**********************************************************************
+# Get the command line arguments
+# Used to test if a given path name is accessible (READABLE) by a
+# an active process of a specific user/group. If not, messages are
+# displayed indicating the first found issue.
+#
+# filepath -- The file path to test.
+# user -- The user name or user ID to test for. If not provided the
+#         current user name is used.
+# group -- The group name or group ID to test for that must contain
+#          the user name. If not provided the current active group
+#          name is used.
+# other -- Overrides user and group names and checks for ANY generic
+#          user that would not belong to any shared groups.
+# verbose -- Print helpful debug information.
+#
+use Getopt::Long;
+GetOptions( "help!", "h!", "user=s", "group=s", "verbose!", "other!" );
+
+if ( $opt_help || $opt_h ) {
+  print "Command: testPath\n";
+  print " Used to test if a given path name is accessible (READABLE) by a\n";
+  print " an active process of a specific user/group. If not, messages are\n";
+  print " displayed indicating the first found issue.\n\n";
+  print "  filepath -- The file path to test.\n";
+  print "  user -- The user name or user ID to test for. If not provided the\n";
+  print "          current user name is used.\n";
+  print "  group -- The group name or group ID to test for that must contain\n";
+  print "           the user name. If not provided the current active group\n";
+  print "           name is used.\n";
+  print "  other -- Overrides user and group names and checks for ANY generic\n";
+  print "           user that would not belong to any shared groups.\n";
+  print "  verbose -- Print helpful debug information.\n";
+  print "usage: testPath <file path> [-user <user name/id>] [-group <group name/id>] [-other -verbose]";
+  exit();
+}
+
+#**********************************************************************
+# Collect the USER and GROUP information from the arguments and the
+# current session.
+
+# Get the user information.
+my $USER_NAME, $USER_ID;
+if ( $opt_user ne '' ) {
+  if ( $opt_user =~ /\D/ ) {
+    $USER_NAME=$opt_user;
+    $USER_ID=getpwnam($USER_NAME);
+  } else {
+    $USER_ID=$opt_user;
+    $USER_NAME=getpwuid($USER_ID);
+  }
+} else {
+  $USER_ID=$<;
+  $USER_NAME=getpwuid($USER_ID);
+}
+
+# Get the group information.
+my $GROUP_NAME, $GROUP_ID;
+my @GROUP_IDS = getgrgids( $USER_NAME );
+my $USED_GROUP = $GROUP_IDS[0];
+my @GROUP_NAMES = @GROUP_IDS;
+grep( $_ = getgrgid($_), @GROUP_NAMES );
+if ( $opt_group ne '' ) {
+  if ( $opt_group =~ /\D/ ) {
+    $GROUP_NAME=$opt_group;
+    $GROUP_ID=getgrgid($GROUP_NAME);
+    die ( "Group ${GROUP_NAME} does not contain $USER_NAME (" . join( ", ", @GROUP_NAMES ) . ")" ) unless ( grep( $_ eq $GROUP_NAME, @GROUP_NAMES ) );
+  } else {
+    $GROUP_ID=$opt_group;
+    $GROUP_NAME=getgrnam($GROUP_ID);
+    die ( "Group ${GROUP_ID} does not contain $USER_NAME (" . join( ", ", @GROUP_IDS ) . ")" ) unless ( grep( $_ eq $GROUP_ID, @GROUP_IDS ) );
+  }
+} else {
+  $GROUP_ID=$USED_GROUP;
+  $GROUP_NAME=getgrgid($GROUP_ID);
+}
+
+# If the 'other' flag is being used, then disregard any
+# USER or GROUP information.
+if ( $opt_other ) {
+  $USER_NAME='any generic user';
+  $USER_ID=-1;
+  $GROUP_NAME="";
+  $GROUP_ID=-1;
+  @GROUP_IDS=( "<empty>" );
+  @GROUP_NAMES=( "<empty>" );
+}
+
+# Display a message in verbose mode.
+if ( $opt_verbose ) {
+  print "For ";
+  if ( $opt_other ) {
+    print $USER_NAME;
+  } else {
+    print "$USER_NAME/$USER_ID($GROUP_NAME/$GROUP_ID)";
+  }
+  print "\n";
+}
+
+# Initialize the search path.
+my $start = $ARGV[0];
+my @names = split( '/', $start );
+my $location = '';
+if ( $names[0] ne '' ) {
+  $location = $ENV{PWD};
+}
+
+my $stop_name = '';
+foreach $name ( @names ) {
+  my $new_location = "${location}/${name}";
+  if ( $name ne '' ) {
+    if ( !accessible( $new_location ) ) {
+      $stop_name = $name;
+      last;
+    }
+    $location = $new_location;
+  }
+}
+
+$name = $stop_name;
+
+if ( $location ne $start ) {
+  print STDERR "From location $start\n ";
+  if ( $location ne '' ) {
+    print STDERR "Can only access $location, ";
+  }
+
+  if ( $location eq '' && $start =~ m|^/| ) {
+    $name = "/$name";
+  }
+
+  if ( -d "${location}/${name}" ) {
+    print STDERR "directory ";
+  }
+
+  print STDERR "'${name}' ";
+
+  if ( ! -e "${location}/${name}" ) {
+    print STDERR "does not exist";
+  } elsif ( -d "${location}/${name}" ) {
+    print STDERR "is not executable for $USER_NAME";
+  } else {
+    print STDERR "cannot be accessed by $USER_NAME";
+  }
+  print STDERR "\n";
+  exit(1);
+}
+
+#**********************************************************************
+#%FUNCTION: accessible
+#%DESCRIPTION: Used to determine if a given file path is accessible
+# for the purposes of reading the file contents from within this
+# path.
+#%ARGUMENTS:
+# file -- The file/directory location to test.
+#%RETURNS
+# TRUE (1) if accessible, and FALSE (0) otherwise.
+#**********************************************************************
+sub accessible {
+  my $file = shift;
+
+  # Everything must exist.
+  if ( ! -e $file ) {
+    return 0;
+  }
+
+  my( $dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size,
+      $atime, $mtime, $ctime, $blksize, $blocks ) = stat( $file );
+
+  if ( $opt_verbose ) {
+    my $type = ( -d $file ) ? "directory" : ( -f $file ) ? "file" : "other" ;
+    printf( " Location $file (%s)\n", $type );
+  }
+
+  # Directories must be at least executable.
+  if ( -d $file ) {
+    if ( $opt_verbose ) {
+      printf( "  User:  %s=%s - exec %d\n", ( getpwuid($uid) )[0], $USER_NAME, ( $mode & S_IXUSR ) >> 6 );
+      printf( "  Group: %s is one of %s - exec %d\n", ( getgrgid($gid) )[0], join( "/", @GROUP_NAMES ), ( $mode & S_IXGRP ) >> 3 );
+      printf( "  Other: exec %s\n", ( $mode & S_IXOTH ) );
+    }
+
+    if ( $uid == $USER_ID ) {
+      return ( $mode & S_IXUSR );
+    } elsif ( grep( $_ eq $gid, @GROUP_IDS ) ) {
+      return ( $mode & S_IXGRP );
+    } elsif ( $mode & S_IXOTH ) {
+      return 1;
+    }
+  }
+
+  # Files must be at least readable.
+  if ( -f $file ) {
+    if ( $opt_verbose ) {
+      printf( "  User:  %s=%s - read %d\n", ( getpwuid($uid) )[0], $USER_NAME, ( $mode & S_IRUSR ) >> 8 );
+      printf( "  Group: %s is one of %s - read %d\n", ( getgrgid($gid) )[0], join( "/", @GROUP_NAMES ), ( $mode & S_IRGRP ) >> 5 );
+      printf( "  Other: read %s\n", ( $mode & S_IROTH ) );
+    }
+
+    if ( $uid == $USER_ID ) {
+      return ( $mode & S_IRUSR );
+    } elsif ( grep( $_ eq $gid, @GROUP_IDS ) ) {
+      return ( $mode & S_IRGRP );
+    } elsif ( $mode & S_IROTH ) {
+      return 1;
+    }
+  }
+
+  # Entries that exist but are not files/directories
+  # do not need consideration.
+  return 0;
+}
+
+#**********************************************************************
+#%FUNCTION: getgrgids
+#%DESCRIPTION: Used to determine the whole set of group IDs corresponding
+# to the given user name.
+#%ARGUMENTS:
+# user -- The user name to test.
+#%RETURNS
+# The full set of group IDs starting with the default/active one.
+#**********************************************************************
+sub getgrgids {
+  my $user = shift;
+  my @gids = ();
+  my $default = '';
+
+  if ( $user eq $< ||
+       $user eq getpwuid($<) ) {
+    @gids = split( /\s/, $( );
+    $default = $gids[0];
+    shift @gids;
+  } else {
+    my $content = '';
+    if ( $user !~ /\D/ ) {
+      $user = getpwuid( $user );
+    }
+    $content = `id -a ${user}`;
+
+    ( $default ) = ( $content =~ /gid=(\d+)\(\S+\)/ );
+    my( $gids ) = ( $content =~ /groups=((\d+)\(\S+\),?)+/ );
+    foreach $data ( split( ',', $gids ) ) {
+      push( @gids, ( split( /\(/, $data ) )[0] );
+    }
+  }
+
+  my %uniq;
+  @uniq{@gids} = ();
+  delete $uniq{$default};
+  @gids = ( $default, keys %uniq );
+
+  return @gids;
+}

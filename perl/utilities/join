@@ -1,0 +1,11 @@
+#!/bin/env perl
+use Getopt::Long;
+GetOptions("delim=s", "trim!");
+my( $delim ) = ($opt_delim || ',');
+$s = join($delim, @ARGV);
+if ( $opt_trim ) {
+  $s =~ s/^$delim+//;
+  $s =~ s/$delim+$//;
+  $s =~ s/$delim{2,}/$delim/g;
+}
+print $s;

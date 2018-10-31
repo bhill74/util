@@ -1,0 +1,72 @@
+#!/usr/bin/env perl
+use LWP::Simple;
+use Getopt::Long;
+
+@options = ( "localdomain!", "localdir!", "verbose!", "pattern=s", "base=s" );
+GetOptions(@options);
+
+my $base = $opt_base;
+my $pattern = $opt_pattern;
+
+my( $domain, $path, $file );
+if ( $base =~ m|^http://([^/]+)((/(.*?))*)$| ) {
+  $domain = $1;
+  $path = $2;
+} elsif ( $base =~ m|^([^/]+)((/(.*?))*)$| ) {
+  $domain = $1;
+  $path = $2;
+}
+
+$path =~ s|^/||;
+if ( $path =~ m|/([^/]+\.\w{1,4})$| ) {
+  $file = $1;
+  $path = $`;
+}
+
+my @search = ( $base );
+my %PROCESSED;
+
+while( @search ) {
+  my $url = shift( @search );
+  if ($opt_verbose) {
+    print STDERR "$url\n";
+  }
+  my $content = get( $url );
+  my $tempContent = $content;
+
+#  print "*** $url\n$content\n\n";
+  
+  while ($tempContent =~ />([^>]*$pattern[^<]*)</i ) {
+    $tempContent = $';
+    my $match = $1;
+    $match =~ s/^\s+//g;
+    $match =~ s/\s+$//g;
+    $match =~ s/\s+/ /g;
+    print "Found pattern in:\n   URL: $url\n   Match: $match\n\n";
+  }
+  
+  $tempContent = $content;  
+  while ($tempContent =~ m|^[^\0]*?<a\s+[^>]*\s*href\s*=\s*\"([^\"]+)\"\s*[^>]*\s*>|i ) {
+    $tempContent = $';
+    my $otherUrl = $1;
+    
+    if ($otherUrl !~ m|^http://| ) {
+      if ($otherUrl !~ m|^/| ) {
+	$otherUrl = "/$path/$otherUrl";
+      } elsif ($opt_localdir) {
+	next;
+      }
+      $otherUrl = "http://$domain$otherUrl";
+    } elsif ($opt_localdomain) {
+      next;
+    }
+    
+    if ($PROCESSED{$otherUrl} == 0) {
+      push( @search, $otherUrl );
+    } elsif ($opt_verbose) {
+      print STDERR " $otherUrl - Done\n";
+    }
+  }
+  $PROCESSED{$url}++;
+}
+

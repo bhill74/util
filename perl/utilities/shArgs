@@ -1,0 +1,17 @@
+#!/bin/env perl
+use Getopt::Long;
+GetOptions( "csh!", "format=s", "flags=s" );
+$shell = ( $opt_csh ) ? 'csh' : 'sh';
+
+use lib "$ENV{HOME}/perl/lib";
+use shFormat;
+
+my @cmds = ();
+@ARGV = split( /\s+/, $opt_flags );
+my %values = ();
+GetOptions( \%values, split( /\s+/, $opt_format ) );
+foreach $name ( keys %values ) {
+  push( @cmds, set_var( "OPT_$name", $values{$name}, $shell ) );
+}
+push( @cmds, set_var( "OPT_ARGV", join( " ", @ARGV ), $shell ) );
+print join_cmds( \@cmds, $shell );

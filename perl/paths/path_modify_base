@@ -1,0 +1,179 @@
+#!/usr/bin/env perl
+
+use Getopt::Long;
+@optionList = ( "n=s", "names=s",
+		"d=s", "delim=s",
+		"m=s", "mode=s",
+		"B=s", "before=s",
+		"A=s", "after=s",
+		"_d!", "_debug!",	       
+		"csh!" );
+GetOptions(@optionList);
+
+my $verbose = ( $opt__debug || $opt__d );
+
+my $names = ( $opt_names || $opt_n );
+my $delim = ( $opt_delim || $opt_d || ':' );
+
+my $mode = ( $opt_mode || $opt_m || 'prepend' );
+
+my $before = ( $opt_before || $opt_B );
+my $after = ( $opt_after || $opt_A );
+
+if ( $mode eq 'dominant' ) {
+  my $location = $ARGV[0];
+  
+  $insert = 0;
+  $same = 0;  
+  $count = 0;
+
+  foreach $name ( split( ',', $names ) ) {
+    $count++;
+
+    my( $dirname, $file ) = ( $location =~ m|^(.*)/([^/]*)$| );
+    if ( $ARGV[0] ne $dirname ) {
+      $ARGV[0] = $dirname;
+    }    
+   
+    my $path = $ENV{$name};
+    my( $oldLocation ) = `$ENV{CELLGEN}/bin/whichFrom -p ${path} ${file} 2>/dev/null`;
+    my( $oldDirname ) = ( $oldLocation =~ m|^(.*)/| );
+    $ARGV[0] = $dirname;
+       
+    if ( $oldDirname ne $dirname ) {
+      $before = join( $delim, $before, $oldDirname );
+      $insert = 1;
+    } elsif ( $oldDirname eq $dirname ) {
+      $same++;
+    }      
+  }
+
+  if ( $insert ) {
+    $mode = 'insert';
+  } elsif ( $same == $count ) {
+    exit;
+  } else {
+    $mode = 'prepend';
+  }
+}
+
+if ( $mode ne 'append' &&
+     $mode ne 'prepend' &&
+     $mode ne 'insert' ) {
+  die ( "Incorrect setting for mode, '${mode}' is not valid" );
+}
+
+if ( $verbose ) {
+  print "P " . ( $mode eq 'prepend' ) . " / I " . ( $mode eq 'insert' ) . " / A " . ( $mode eq 'append' ) . "\n";
+}
+
+my @result;
+foreach $name ( split( ',', $names ) ) {
+  @items = split( $delim, $ENV{$name} );
+
+  my $before_index = $#items+1;
+  my $after_index = -1;
+
+  if ( $mode eq 'append' ) {
+    $after_index = $#items;
+  } elsif ( $mode eq 'insert' ) {
+    my @before_items = split( $delim, $before );
+    my @after_items = split( $delim, $after );
+
+    if ( $verbose ) {
+      print " B " . join( " ", @before_items ) . "\n";
+      print " A " . join( " ", @after_items ) . "\n";
+    } 
+
+    my %before_hash, %after_hash, %new_hash;
+    @before_hash{@before_items} = ();
+    @after_hash{@after_items} = ();
+    @new_hash{@ARGV} = ();
+
+    my $index = 0;
+    my @new_items = ();
+    foreach $item ( @items ) {
+      if ( exists( $new_hash{$item} ) ) {
+	if ( $verbose ) {
+	  print "Removing $item\n";
+	}
+	next;
+      }
+
+      push( @new_items, $item );
+      if ( exists( $before_hash{$item} ) ) {
+	$before_index = $index;
+      }
+
+      if ( exists( $after_hash{$item} ) ) {
+	$after_index = $index;
+      }
+
+      $index++;
+    }
+    @items = @new_items;
+  } else {
+    $before_index = 0;
+  }
+
+  if ( $verbose ) {
+    print "$name -- 0 ($after_index $before_index) $#items - ";
+  }
+
+  # Prepend the segments because BEFORE is the start and AFTER is not set.
+  if ( $before_index == 0 && $after_index < 0 ) {
+    if ( $verbose ) {
+      print "PREPEND";
+    }
+    @items = ( @ARGV, @items );
+  }
+  # Append the segments because AFTER is the end and BEFORE is not set.
+  elsif ( $before_index > $#items && $after_index == $#items ) {
+    if ( $verbose ) {
+      print "APPEND";
+    }
+    @items = ( @items, @ARGV );
+  }
+  # Insert AFTER because BEFORE is not set.
+  elsif ( $before_index > $#items && $after_index >= 0 ) {
+    if ( $verbose ) {
+      print "AFTER";
+    }
+    @items = ( ( @items )[0..$after_index], @ARGV, ( @items )[$after_index+1..$#items] );
+  }
+  # Insert BEFORE because AFTER is not set.
+  elsif ( $after_index < 0 && $before_index <= $#items ) {
+    if ( $verbose ) {
+      print "BEFORE";
+    }
+    @items = ( ( @items )[0..$before_index-1], @ARGV, ( @items )[$before_index..$#items] );
+  }
+  # Insert between BEFORE and AFTER.
+  else {
+    if ( $verbose ) {
+      my $tag = ( $after_index < $before_index ) ? "(reversed)" : "";
+      print "INSERT $tag";
+    }
+    $index = int( ( ( $before_index - 1 ) + ( $after_index + 1 ) )/2 );
+
+    @items = ( ( @items )[0..$index], @ARGV, ( @items )[$index+1..$#items] );
+  }
+
+  if ( $verbose ) {
+    print "\n";
+  }
+
+  my $path = join( $delim, @items );
+  ( $path ) = `$ENV{DEVHOME}/clean -s '${path}' -d :`;
+
+  if ( $opt_csh ) {
+    push( @result, "setenv ${name} ${path}" );
+  } else {
+    push( @result, "export ${name}=${path}" );
+  }
+}
+
+print join( ( $opt_csh ) ? "\n" : ";", @result );
+if ( $opt_csh ) {
+  print "\n";
+}

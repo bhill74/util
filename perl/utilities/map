@@ -1,0 +1,100 @@
+#!/bin/env perl -I/opt/gnu/lib/perl5/site_perl/5.6.0
+
+use LWP::Simple;
+
+# -----------------------------------------------------------------------
+# Process command line arguments
+use Getopt::Long;
+
+# Process command line arguments
+@optionList = 
+  ( "country=s",
+    "address=s",
+    "city=s",
+    "state=s",
+    "province=s",
+    "zipcode=s",
+    "postalcode=s",
+    "zoom=s",
+    "big!",
+    "path=s" );
+GetOptions(@optionList);  
+
+# Country
+$country = 'CA';
+$country = $opt_country if ( $opt_country );
+
+# Address
+$address = '';
+$address = $opt_address if ( $opt_address );
+
+# City
+$city = '';
+$city = $opt_city if ( $opt_city );
+
+# State/Province
+$state = '';
+if ( $opt_state ) {
+  $state = $opt_state; 
+} elsif ( $opt_province ) {
+  $state = $opt_province;
+}
+
+# Zip/Postal Code
+$code = '';
+if ( $opt_zipcode ) {
+  $code = $opt_zipcode;
+} elsif ( $opt_postalcode ) {
+  $code = $opt_postalcode;
+}
+
+# Path.
+$path = "$ENV{HOME}/map.gif";
+$path = $opt_path if ( $opt_path );
+
+# URLs
+$mapquest = "http://www.mapquest.com";
+$application = "/maps/map.adp";
+
+# Add arguments.
+$url = $mapquest . $application . "?";
+if ($opt_zoom != '') {
+  $url .= "z=$opt_zoom&";
+}
+$url .= "countryCode=41&";
+$url .= "country=".&encode($country)."&";
+$url .= "address=".&encode($address)."&";
+$url .= "city=".&encode($city)."&";
+$url .= "state=".&encode($state)."&";
+$url .= "zipcode=".&encode($code)."&";
+$url .= "addtohistory=&submit.x=22&submit.y=3";
+
+print STDERR "$url\n";
+$content = get( $url );
+
+# If the big option is enabled.
+if ( $opt_big ) {
+  ( $url ) = ( $content =~ m|\"(/maps/map\.adp\?.*?size=big\&mapdata=[^\"]+)\"| );
+  $content = get( $mapquest . $url ) if ( $url );
+}
+
+# If the zoom option is enabled.
+if ( $opt_zoom ) {
+  ( $url ) = ( $content =~ m|\"(/maps/map\.adp\?.*?zoom=$opt_zoom\&mapdata=[^\"]+)\"| );
+  $content = get( $mapquest . $url ) if ( $url );
+} 
+
+# Extract the map image URL.
+( $image ) = ( $content =~ m|\"(http://mq-mapgend\.websys\.aol\.com:80/mqmapgend?[^\"]+)\"| );
+
+if ( $image && open( MAP, ">$path" ) ) {
+  print MAP get( $image );
+  close( MAP );
+  `xv $path`;
+}
+
+sub encode {
+  my $value = shift;
+  $value =~ s/([^\w\.])/uc sprintf ("%%%lx", unpack( "c", $1 ) )/eg;
+  return $value;
+}

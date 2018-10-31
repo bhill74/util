@@ -1,0 +1,124 @@
+#!/bin/env perl
+
+use lib "/opt/gnu/lib/perl5/site_perl/5.6.0";
+use LWP::Simple;
+
+%DOWNLOADED = ();
+
+$keepOtherLinks = 0;
+
+$url = $ARGV[0];
+$url =~ s|\\|/|g;
+
+$SITE = ''; $PORT = '';
+( $PORT, $SITE ) = ( $url =~ m|http:(\d*)//([^/]+)|i );
+
+$BASE = $url;
+$BASE = $1 if ( $url =~ m|$SITE/(.*)|i );
+$BASE =~ s|/+$||;
+
+$PATH = $BASE;
+$PATH = $ARGV[1] if ( $ARGV[1] );
+
+printf( "%s | %s | %s\n", $url, $SITE, $BASE );
+&download( $url, ".", $base ); 
+
+sub download {
+  my $url = shift;
+  my $path = shift;
+  my $base = shift;  
+
+  my $fullUrl = &resolveURL( $url );
+  my $content = &get( $fullUrl );
+  my $filename = &extractFile( $url ); 
+  
+  if ( $fullUrl =~ m|^http:$PORT//$SITE/$BASE|i ) {
+    my $data = $content;
+    $content = '';
+    while ( $data =~ /<a\s+([^>]*)\s*href\s*=\s*\"([^\"]+)\"([^>]*)>/i ||
+	    $data =~ /<img\s+([^>]*)\s*src\s*=\s*\"([^\"]+)\"([^>]*)>/i ) {
+      #    printf( "IMG %s %s %s\n", $2, &resolveURL( $2 ), &extractFile( $2 ) );
+      my $subUrl = &resolveURL( $2 );
+      $data = $'; 
+      my ( $start, $link, $end ) = ( $`, $&, $' );
+      my $getUrl = 0;
+      if ( $subUrl =~ m|^http:$PORT//$SITE/$PATH|i &&
+	   $subUrl !~ m|\.cgi| &&
+	   $subUrl !~ m|\#| ) {
+	$getUrl = 1;
+      }
+      
+      printf( "%s -- %s\n", $subUrl, &extractFile( $subUrl ) ) if ( $getUrl );
+      
+      if ( !$keepOtherLinks && !$getUrl ) {
+	$link = '';
+      } 
+      $content .= $start . $link;
+      
+      if ( $getUrl ) {
+	$DOWNLOADED{$subUrl}++;
+	if ( $DOWNLOADED{$subUrl} == 1 ) {
+	  &download( $subUrl, $path );
+	}
+      }
+    }
+    $content .= $data;
+  }
+  
+  printf( "Downloaded: %s --> %s\n", $fullUrl, $filename );
+  &save( $filename, $content );
+}
+
+sub resolveURL {
+  my $url = shift;  
+  if ( $url !~ /^(\w+):/ ) {
+    if ( $url =~ m|^/| ) {
+      $url = sprintf( "http:%s//%s%s", $PORT, $SITE, $url );
+    } else {
+      $url = sprintf( "http:%s//%s/%s/%s", $PORT, $SITE, $BASE, $url );
+    }
+  }
+  
+  return $url;
+}
+
+sub relativeURL {
+  my $url = &resolveURL( shift ); 
+}
+
+sub extractFile {
+  my $url = &resolveURL( shift ); 
+  $url =~ s|^http:$PORT//$SITE||i;
+  $url =~ s|^(/$PATH)?/+||i;  
+  
+  $url .= "index.html" if ( !$url || $url =~ m|/$| );
+  $url .= "/index.html" if ( $url !~ m/\.(html|htm|gif|jpg|cgi)$/i );
+  
+  return $url;
+}
+
+sub save {
+  my $location = shift;
+  my $content = shift;
+  
+  my @path, $file = $location;
+  if ( $location =~ m|/([^/]+)$| ) {
+    $file = $1;
+    @path = split( '/', $` );
+  }
+  
+#  printf( "L %s -- %s %s\n", $location, $file, join( "|", @path ) );
+
+  my $directory = '';
+  while( @path ) {
+    $directory .= "/" if ( $directory );
+    $directory .= shift @path;
+    `mkdir $directory 2>&1`;
+  }
+  
+
+  if ( open( FILE, ">$location" ) ) {
+    print FILE $content;
+    close( FILE );
+  }
+}
