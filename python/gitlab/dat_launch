@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import getopt
+import pipeline
+import time
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                      "t:i:nh",
+                      ("tag=", "ids=", "noopt", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--tag <DSIM_TAG>] "
+          "[-i/--ids <IDS>] "
+          "[-h/--help] [-n/--noopt]".format(program))
+    print("Used to launch the DAT jobs.\n")
+    print("  -h, --help         Display this help information")
+    print("  -t, --tag          The DSIM tag to use")
+    print("  -i, --ids          The regression IDs to use")
+    print("  -n, --noopt        "
+          "Perform no operation, just display the access URLs and arguments\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+params = {'DSIM_TAG': 'UNKNOWN', 'DB_ID': -1}
+ids = []
+preview = 0
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-t', '--tag'):
+        params['DSIM_TAG'] = a
+
+    if o in ('-i', '--ids'):
+        ids = a.split(',')
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+pipe = pipeline.ProjectPipeline('time0/dsim-acceptance-scripts',
+                                preview=preview)
+for rid in ids:
+    params['DB_ID'] = rid
+    r = pipe.launch('master', params)
+    print("Submitted: {}".format(r['id']))
+    time.sleep(10)

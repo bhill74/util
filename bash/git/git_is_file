@@ -1,0 +1,6 @@
+#!/bin/bash
+
+for file in "${@}"; do
+    if [ -z "$(git ls-files --error-unmatch $file 2>&1 | grep 'did not match')" ]; then echo -n "YES"; else echo -n "NO"; fi
+    echo -e '\t' $file
+done

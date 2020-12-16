@@ -5,18 +5,10 @@ require "menu_subs.pl";
 use Menu; 
 use Getopt::Long;
 
-my %valid_type = map { $_ => 1 } qw(single multiple directory file yesno string number);
-
-my $type = 'single';
-my $delim = ',';
+my $delim = "\n";
 my @choices = &init_choices();
 
 GetOptions(
-    'type:s'            => sub {
-        my ($name, $value) = @_;
-        $valid_type{$value} or die("Invalid value for -$name, must be one of: " . join(" ", sort keys %valid_type) . "\n");
-        $type = $value;
-    },
     'choice:s@'         => \@choices,
     'choices:s'          => sub {
         my ($name, $value) = @_;
@@ -29,7 +21,7 @@ GetOptions(
     'delim:s'           => \$delim);
 
 $menu = Menu->new;
-$menu->type( $type );
+$menu->type( 'multiple' );
 $menu->default( $default ) if $default;
 $menu->choices( @choices ) if scalar(@choices);
 $menu->preMessage( $pre ) if $pre;

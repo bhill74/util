@@ -1,0 +1,19 @@
+#!/usr/bin/perl 
+
+use lib "$ENV{HOME}/lib/perl";
+require "menu_subs.pl";
+use Menu; 
+use Getopt::Long;
+
+GetOptions(
+    'default:s'         => \my $default,
+    'pre:s'             => \my $pre,
+    'post:s'            => \my $post,
+    'output:s'          => \my $file);
+
+$menu = Menu->new;
+$menu->type( 'directory' );
+$menu->default( $default ) if $default;
+$menu->preMessage( $pre ) if $pre;
+$menu->postMessage( $post ) if $post;
+output($menu, $delim, $file);

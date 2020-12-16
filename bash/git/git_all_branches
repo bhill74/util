@@ -1,0 +1,14 @@
+#!/bin/bash
+
+source ${HOME}/util/git/settings.sh
+
+if [[ $(git_is | tail -1) -gt 0 ]]; then
+    git branch -a 2>&1 | \
+        sed "s|^ *remotes/origin/||" | \
+        sort
+else 
+    git ls-remote --heads git@gitlab.metrics.ca:product/dsim.git | \
+        awk '{print $2}' | \
+        sed "s|refs/heads/||" | \
+        sort
+fi

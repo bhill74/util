@@ -1,0 +1,7 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/util/text
+install_other $HOME/util/text

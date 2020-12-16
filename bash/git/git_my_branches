@@ -1,0 +1,9 @@
+#!/bin/bash
+
+git for-each-ref --format='%(authoremail) %(refname)' --sort=authoremail 2>&1 | \
+    sed -E 's|<([a-zA-Z0-9\.]*)@[a-zA-Z0-9.-]*> *|\1@|' | \
+    grep "${USER}@refs/remotes/origin/" | \
+    sed 's|refs/remotes/origin/||' | \
+    cut -f2 -d@ | \
+    sort
+    #sed 's|<([a-zA-Z0-9]*)@.*>|\1|'

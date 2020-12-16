@@ -1,0 +1,6 @@
+#!/bin/bash
+
+. ${HOME}/util/slack/settings.sh
+
+msg=$(cat -)
+echo -e "~~~\n${msg}\n~~~" | slack_send -u "Slack Pipe (from $USER)" -e 'computer' -t "$msg" "${@}"

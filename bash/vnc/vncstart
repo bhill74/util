@@ -1,0 +1,5 @@
+#!/bin/bash
+
+DISP=${1:-74}
+vncserver -kill :${DISP}
+vncserver -geometry 1920x1080 -depth 24 :${DISP} -localhost no

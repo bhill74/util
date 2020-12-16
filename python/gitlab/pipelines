@@ -1,0 +1,163 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import getopt
+import pipeline
+
+
+try:
+    opts, other = getopt.getopt(sys.argv[1:],
+                                "t:d:p:v:u:s:l:nh",
+                                ("token=", "domain=", "project=", "variable=",
+                                 "user=", "status=", "limit=", "noopt",
+                                 "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--token <TOKEN>] [-d/--domain <DOMAIN>] "
+          "[-p/--project <PROJECT>] "
+          "[-v/--variable @all/<NAME>] [-u/--user @all/<USER>] "
+          "[-s/--status @all /<STATUS>] [-l/--limit <LIMIT>] "
+          "[-h/--help]".format(program))
+    print("Used to search and report the pipeline inforamation "
+          "from a specific project in a gitlab server.\n")
+    print("  -h, --help         Display this help information")
+    print("  -t, --token        The GitLab token to use in the query")
+    print("  -d, --domain       The GitLab domain")
+    print("  -p, --project      The full project name from the GitLab server")
+    print("  -v, --variable     The name of the variable to display for "
+          "each pipeline")
+    print("                     '@all' is used then the variables for "
+          "each pipeline are")
+    print("                     listed")
+    print("                      Multiple variables can be specified with "
+          "multiple -v options")
+    print("                     ** If a variable is requested then only "
+          "pipelines that")
+    print("                     use that variable are displayed **")
+    print("  -u, --user         The name of the user to filter, otherwise "
+          "'@all' will")
+    print("                     include the user in the results table")
+    print("  -s, --status       The status to filter, otherwise '@all' will "
+          "include the")
+    print("                     status in the results table")
+    print("  -l, --limit        The number of pipelines to query\n")
+    print("  -n, --noopt        Perform no operations\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+project = 'dsim'
+domain = 0
+token = 0
+use_users = False
+use_status = False
+use_variables = False
+params = {'per_page': 10}
+preview = 0
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-t', '--token'):
+        token = a
+
+    if o in ('-p', '--project'):
+        project = a
+
+    if o in ('-u', '--user'):
+        if 'user' not in params:
+            params['user'] = []
+
+        params['user'] = a
+        use_users = True
+
+    if o in ('-s', '--status'):
+        if 'status' not in params:
+            params['status'] = []
+
+        params['status'].append(a)
+        use_status = True
+
+    if o in ('-l', '--limit'):
+        params['per_page'] = a
+
+    if o in ('-v', '--variable'):
+        if 'variables' not in params:
+            params['variables'] = {}
+
+        if a == '@all':
+            use_variables = True
+        else:
+            if '=' not in a:
+                params['variables'][a] = True
+            else:
+                k, v = a.split('=')
+                params['variables'][k] = v
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+table_headers = ['ID', 'Created At']
+if use_users:
+    table_headers.append('User')
+
+if use_status:
+    table_headers.append('Status')
+
+if use_variables:
+    table_headers.append('Variables')
+
+key_headers = list(params['variables'].keys()) if 'variables' in params else []
+key_headers.sort()
+table_headers += key_headers
+table_rows = []
+
+pipe = pipeline.ProjectPipeline(project, preview=preview)
+
+
+def format_table(headers, matrix,
+                 top_format, left_format, cell_format, row_delim, col_delim):
+    table = [headers] + [row for row in matrix]
+    table_format = [['{:^{}}'] + len(headers) * [top_format]] \
+        + len(matrix) * [[left_format] + len(headers) * [cell_format]]
+    col_widths = [max(len(format.format(cell, 0))
+                      for format, cell in zip(col_format, col))
+                  for col_format, col in zip(zip(*table_format), zip(*table))]
+    return row_delim.join(
+                col_delim.join(
+                    format.format(cell, width)
+                    for format, cell, width in
+                    zip(row_format, row, col_widths))
+                for row_format, row in zip(table_format, table))
+
+for pl in pipe.query(params, token=token):
+    table_rows.append([])
+    table_rows[-1].append(pl['id'])
+    table_rows[-1].append(pl['created_at'])
+    if use_users:
+        table_rows[-1].append(pl['username'])
+
+    if use_status:
+        table_rows[-1].append(pl['status'])
+
+    if use_variables:
+        table_rows[-1].append(', '.join(pl['variable_names']))
+    for k in key_headers:
+        table_rows[-1].append(
+                pl['variable_values'][k] if k in
+                pl['variable_values'] else '')
+
+table = format_table(table_headers,
+                     table_rows,
+                     '{:^{}}', '{:<{}}', '{:>{}}', '\n', ' | ')
+print(table)

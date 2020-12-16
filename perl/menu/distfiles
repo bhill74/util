@@ -3,5 +3,9 @@
 BASE="../../"
 source $BASE/functions
 
+initialize $HOME/lib/perl
+install_dir $HOME/lib/perl '*.pm' 
+install_dir $HOME/lib/perl '*.pl'
+
 initialize $HOME/util/menu
 install_dir $HOME/util/menu

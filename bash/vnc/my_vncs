@@ -1,0 +1,9 @@
+#!/bin/bash
+
+. $(dirname $BASH_SOURCE)/vnc_utils.sh
+
+ps --user $USER -f | grep "/usr/bin/Xtigervnc " | grep -v grep | while read line; do
+	port=$(vnc_get_port "$line")
+	disp=$(vnc_get_disp "$line")
+	echo ":$disp,$port"
+done

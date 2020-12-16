@@ -5,3 +5,4 @@ source $BASE/functions
 
 initialize $HOME/util/menu
 install_file $HOME/util/menu settings.sh 
+install_other $HOME/util/menu

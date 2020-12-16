@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [ -z "$GIT_DIR" ]; then
+  dir=$PWD
+  while [ ! -z "$dir" ]; do
+    if [ -d "$dir/.git" ]; then
+	    echo $dir
+      echo 1
+      exit
+    fi
+    dir=$(if [ "$dir" == "/" ]; then echo ""; else echo $(dirname $dir); fi)
+  done
+
+  echo 0
+  exit
+fi
+
+echo 1

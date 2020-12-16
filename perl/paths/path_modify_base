@@ -163,8 +163,8 @@ foreach $name ( split( ',', $names ) ) {
     print "\n";
   }
 
+  map { s/^\s+|\s+$//g; } @items;
   my $path = join( $delim, @items );
-  ( $path ) = `$ENV{DEVHOME}/clean -s '${path}' -d :`;
 
   if ( $opt_csh ) {
     push( @result, "setenv ${name} ${path}" );

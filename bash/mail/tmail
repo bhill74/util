@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#################################################################################
+# tmail
+# 
+# Used to wrap any given text content through STDIN in <pre> tags to preserve
+# it's pre-formatting and then send as email to the desired recipients with a 
+# HTML header so that it is rendered properly in the mail tool.
+#
+# Has all the same options as the mail tool.
+#
+
+hmail=$(dirname $BASH_SOURCE)/hmail
+if [ -t 0 ]; then
+    $hmail "${@}"
+else
+    echo "<pre>$(cat -)</pre>" | $hmail "${@}"
+fi

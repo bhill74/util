@@ -1,0 +1,6 @@
+#!/bin/bash
+
+later=$(date --date="$1" +%s)
+now=$(date +%s)
+diff=$(($later-$now))
+sleep $diff

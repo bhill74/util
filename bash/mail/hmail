@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#################################################################################
+# hmail
+# 
+# Used to send email content to the desired recipients with a 
+# HTML header so that it is rendered properly in the mail tool.
+#
+# Has all the same options as the mail tool.
+#
+
+mail -a "Content-Type: text/html" -a "MIME-Version: 1.0" "${@}"
