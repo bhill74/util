@@ -34,7 +34,7 @@ if __name__ == "__main__":
     config = ConfigParser.ConfigParser()
     config.read(expanduser("~/slack.cfg"))
     section = 'Nicknames'
-    if (config.has_section(section) and config.has_option(section, result['channel'])):
+    if ('channel' in result and config.has_section(section) and config.has_option(section, result['channel'])):
         result['channel'] = config.get(section, result['channel'])
 
     if select.select([sys.stdin,],[],[],0.0)[0]:
