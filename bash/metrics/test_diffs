@@ -1,0 +1,10 @@
+#!/bin/bash
+
+base=$(dirname $BASH_SOURCE)
+num=${#@}
+i=1
+for dir in "$@"; do
+	echo -ne "\e[36m$i of $num\e[m "
+	${base}/test_diff $dir	
+	i=$(($i+1))
+done

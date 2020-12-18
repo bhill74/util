@@ -1,0 +1,4 @@
+#!/bin/bash
+
+base=$(cd $(dirname $BASH_SOURCE) && pwd)
+echo $(${base}/full_name "${@}" | tr A-Z a-z | sed "s/  */./g")@metrics.ca

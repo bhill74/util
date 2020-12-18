@@ -1,0 +1,78 @@
+#!/bin/bash
+
+function line() {
+	perl -e "print '-' x $1;"
+}
+
+function header() {
+    local width=$1
+    local text=$2
+    local text_len=$((${#text}+2))
+    local pre=$((($width-$text_len)/2))
+    local post=$(($width-$text_len-$pre))
+    echo "$(line $pre) ${text} $(line $post)"
+}
+
+function show_diff() {
+    local actual=$1
+    local expect=$2
+    local prompt=$3
+
+    local same=$(diff --brief $actual $expect)
+    if [ -z "$same" ]; then 
+        return
+    fi
+    echo
+
+    all_same=0
+
+    # Size the text and output the headers.
+    local cols=$(($(tput cols)-8))
+    local half_cols=$((cols/2))
+    local actual_header=$(header $(($half_cols-1)) "ACTUAL ($actual)")
+    local expect_header=$(header $(($half_cols-3)) "EXPECT ($expect)")
+    echo -e "        \e[31m${actual_header} # ${expect_header}\e[m"
+
+    # Perform the difference.
+    diff -W $cols --color --suppress-common-lines -y $actual $expect | cat -n | grep -v -e '($'
+ 
+    if [ -z "$prompt" ]; then
+        can_sort=$(if [ "$actual" == "actual" ] || [ "$actual" == "actual_out" ]; then echo 1; else echo 0; fi)
+        options=$(if [[ $can_sort ]]; then echo "y/s/n/d"; else echo "y/n/d"; fi)
+        read -p "Replace results? (${options}) [n]" -n 1 -r < /dev/tty
+    	echo
+    	if [[ $REPLY =~ ^[Yy]$ ]]; then
+    		echo "Copying $actual --> $expect"
+    		cp $actual $expect
+        else
+            if [[ $can_sort ]] && [[ $REPLY =~ ^[Ss]$ ]]; then
+                export LC_ALL=C
+                sort $actual > ${actual//actual/expect}.sort
+                git rm -f $expect
+                rm expect 2>/dev/null
+            else 
+                if [[ $REPLY =~ ^[Dd]$ ]]; then
+                    meld $actual $expect 
+                fi
+            fi
+    	fi
+    fi
+}
+
+test=$1
+pushd $test > /dev/null
+all_same=1
+
+# Determine the golden reference files.
+echo -n "Test $test"
+
+while read expect; do
+    actual=$(echo $expect | sed "s/expect/actual/")
+    if [ -e "$actual" ]; then
+        show_diff $actual $expect
+    fi
+done < <(ls expect*)
+
+if [[ $all_same == 1 ]]; then
+    echo -e " \e[32mSAME\e[m"
+fi
