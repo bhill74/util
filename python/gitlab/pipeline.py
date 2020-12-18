@@ -22,7 +22,7 @@ class Pipeline:
             return self._access_token
 
         return os.environ["GL_TOKEN"] if 'GL_TOKEN' in os.environ \
-            else 'UNKNOWN'
+            else 0
 
     def trigger_token(project):
         for k, v in os.environ.items():
@@ -33,7 +33,7 @@ class Pipeline:
                 if tk in os.environ:
                     return os.environ[tk]
 
-        return 'UNKNOWN'
+        return 0
 
     def api(self):
         return "{}/api/v4/projects".format(self.domain)
@@ -54,6 +54,9 @@ class Pipeline:
         if token == 0:
             token = Pipeline.trigger_token(project)
 
+        if token == 0:
+            raise ValueError("Missing trigger token")
+
         var = {"token": token, "ref": ref}
         for k in params:
             var["variables[{}]".format(k)] = params[k]
@@ -70,6 +73,9 @@ class Pipeline:
     def query(self, project, params={}, token=0):
         if token == 0:
             token = self.access_token()
+
+        if token == 0:
+            raise ValueError("Missing access token")
 
         results = []
         fields = {'page': 1, 'per_page': 10}
@@ -147,12 +153,12 @@ class Pipeline:
 
         return results
 
-    def pipeline(self, project, pipeline_id, token='UNKNOWN'):
+    def pipeline(self, project, pipeline_id, token=0):
         url = self.pipelines_api(project) + "/{}".format(pipeline_id)
         r = requests.get(url, headers={'PRIVATE-TOKEN': token})
         return json.loads(r.text)
 
-    def variables(self, project, pipeline_id, token='UNKNOWN'):
+    def variables(self, project, pipeline_id, token=0):
         url = self.pipelines_api(project) + "/{}/variables".format(pipeline_id)
         r = requests.get(url, headers={'PRIVATE-TOKEN': token})
         return json.loads(r.text)
