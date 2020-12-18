@@ -1,0 +1,84 @@
+#!/bin/bash
+
+NAME=$(basename $BASH_SOURCE)
+BASE=$(dirname $BASH_SOURCE)
+
+args=()
+method=normal
+gdb_cmds=(-ex "set print object on" -ex "skip file util/CountedPtr.h")
+valgrind_mem_opts=("-v" "--leak-check=full" \
+	       "--trace-children=yes" \
+	       #"--trace-children-skip=*" \
+	       "--track-origins=yes" \
+	       "--show-leak-kinds=all" \
+	       #"--suppressions=*" \
+	       "--error-limit=no")
+callgrind_ops=("--trace-children=yes")
+
+cmd=${NAME:1:${#NAME}-1}
+pre=""
+for arg in "$@"; do
+	case "$arg" in
+                -cmd=*)
+                        cmd=$(echo $arg | sed "s/-cmd=//")
+                        ;;
+                -pre=*)
+                        pre=$(echo $arg | sed "s/-pre=//")
+                        ;;
+		-gdb)
+			method=gdb
+			;;
+		-gdbb=*)
+			method=gdb
+			bp=$(echo $arg | sed "s/-gdbb=//")
+			gdb_cmds=("${gdb_cmds[@]}" -ex "break $bp")
+			;;
+		-gdbc=*)
+			method=gdb
+			cmd=$(echo $arg | sed "s/-gdbc=//")
+			gdb_cmds=("${gdb_cmds[@]}" -ex "$cmd")
+			;;
+		-memory)
+			method=memory
+			;;
+                -memorysupp=*)
+                        method=memory
+                        supp=$(echo $arg | sed "s/-memorysupp=//")
+                        valgrind_mem_opts+=(--suppressions=$supp)
+                        ;;
+                -profile)
+                        method=profile
+                        ;;
+                -profileoutf=*)
+                        method=profile
+                        outf=$(echo $arg | sed "s/-profileoutf=//")
+                        callgrind_opts+=(--callgrind-out-file=$outf)
+                        ;;
+		*)
+			args=("${args[@]}" "$arg")
+			;;
+	esac	
+done
+
+fcmd=$(which $cmd)
+if [ ! -z "$pre" ]; then $pre "${args[@]}"; fi
+
+case $method in
+	gdb)
+                echo "** GDB (${gdb_cmds[@]}) **"
+		gdb "${gdb_cmds[@]}" -ex run --args $fcmd "${args[@]}" 
+		;;
+	memory)
+		echo "** Valgrind **"
+                log_file=VALGRIND.$(basename $cmd).$$.out
+		valgrind ${valgrind_mem_opts[@]} --log-file=${log_file} $fcmd "${args[@]}"
+		;;
+        profile)
+                echo "** Profiling **"
+                log_file=CACHEGRIND.$(basename $cmd).$$.out
+                valgrind --tool=callgrind ${callgrind_opts[@]} --log-file=${log_file} $fcmd "${args[@]}"
+                ;;
+	normal)
+		$fcmd "${args[@]}"
+		;;
+esac
