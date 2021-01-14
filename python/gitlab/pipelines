@@ -3,7 +3,7 @@
 import os
 import sys
 import getopt
-import pipeline
+import project
 
 
 try:
@@ -51,7 +51,7 @@ def usage():
     print("Report bugs to: brian.hill@metrics.ca\n")
 
 
-project = 'dsim'
+project_name = 'dsim'
 domain = 0
 token = 0
 use_users = False
@@ -72,7 +72,7 @@ for o, a in opts:
         token = a
 
     if o in ('-p', '--project'):
-        project = a
+        project_name = a
 
     if o in ('-u', '--user'):
         if 'user' not in params:
@@ -122,7 +122,7 @@ key_headers.sort()
 table_headers += key_headers
 table_rows = []
 
-pipe = pipeline.ProjectPipeline(project, preview=preview)
+pipe = project.Pipelines(project_name, preview=preview)
 
 
 def format_table(headers, matrix,

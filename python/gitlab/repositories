@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import getopt
+import project
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                      "p:n",
+                      ("project=", "noopt"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-p/--project <project>] [-n/--noopt]".format(program))
+    print("Used to retrieve the names of a project repositories\n")
+    print("Report bugs to: brian.hill@metrics.ca")
+
+
+preview = 0
+name = ''
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-p', '--project'):
+        name = a
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+
+repo = project.Repositories(name, preview=preview)
+print(" ".join(repo.names()))

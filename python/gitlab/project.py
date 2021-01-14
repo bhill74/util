@@ -7,7 +7,7 @@ import urllib.parse
 import re
 
 
-class Pipeline:
+class Project:
     def __init__(self, domain=0, preview=0, access_token=0):
         if domain == 0:
             domain = os.environ["GL_DOMAIN"] if 'GL_DOMAIN' in os.environ \
@@ -50,9 +50,12 @@ class Pipeline:
     def trigger_api(self, project):
         return self.project_api(project) + "/trigger/pipeline"
 
+    def repository_api(self, project):
+        return self.project_api(project) + "/registry/repositories"
+
     def launch(self, project, ref, params={}, token=0):
         if token == 0:
-            token = Pipeline.trigger_token(project)
+            token = Project.trigger_token(project)
 
         if token == 0:
             raise ValueError("Missing trigger token")
@@ -163,8 +166,19 @@ class Pipeline:
         r = requests.get(url, headers={'PRIVATE-TOKEN': token})
         return json.loads(r.text)
 
+    def repositories(self, project, params={}, token=0):
+        if token == 0:
+            token = self.access_token()
 
-class ProjectPipeline(Pipeline):
+        url = self.repository_api(project) + "/"
+        if (self.preview):
+            print("URL: " + url)
+
+        r = requests.get(url, data=params, headers={'PRIVATE-TOKEN': token})
+        return json.loads(r.text)
+
+
+class Pipelines(Project):
     def __init__(self, project, trigger_token=0, domain=0, preview=0):
         self.project = project
         self._trigger_token = trigger_token
@@ -178,3 +192,24 @@ class ProjectPipeline(Pipeline):
 
     def query(self, params={}, token=0):
         return super().query(self.project, params, token=token)
+
+
+class Repositories(Project):
+    def __init__(self, project, domain=0, preview=0):
+        self.project = project
+        super().__init__(domain, preview)
+
+    def repositories(self, params={}, token=0):
+        return super().repositories(self.project, params, token=token)
+
+    def names(self, token=0):
+        names = []
+        info = self.repositories({"tags": True}, token)
+        for i in info:
+            if "tags" in i:
+                for t in i["tags"]:
+                    if "name" in t and t["name"] not in names:
+                        names.append(t["name"])
+
+        names.sort()
+        return names
