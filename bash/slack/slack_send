@@ -1,30 +1,5 @@
 #!/bin/bash
 
-. ${HOME}/util/slack/settings.sh
-. ${HOME}/util/kramdown/settings.sh
-
-if [ -z "$SLACK_CLIENT" ]; then
-    echo "No client set"
-    exit 1
-fi
-
-if [ -z "$SLACK_HOOK" ]; then
-    echo "No bot set"
-    exit 1
-fi
-
-if [ -z "$SLACK_HOOK_TOKEN" ]; then
-    echo "No token set";
-    exit 1
-fi
-
-url="https://hooks.slack.com/services/${SLACK_CLIENT}/${SLACK_HOOK}/${SLACK_HOOK_TOKEN}"
-content=$(cat -)
-body=$(echo -e "$content" | kramdown -o slack)
-payload=$(echo "$body" | slack_payload.py "${@}" --json)
-#echo "PAYLOAD ${payload}"
-res=$(curl -s -X POST --data-urlencode "payload=${payload}" $url)
-if [ "$res" != "ok" ]; then
-    echo "ERROR $res"
-    echo $payload | python -m json.tool
-fi
+echo "Warning: slack_send has been replaced by toslack, please update your scripts"
+base=$(cd $(dirname $BASH_SOURCE) && pwd)
+${base}/toslack "${@}"

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+. ${HOME}/util/slack/settings.sh
+. ${HOME}/util/kramdown/settings.sh
+
+url=$(slack_url.py)
+content=$(cat -)
+body=$(echo -e "$content" | kramdown -o slack)
+payload=$(echo "$body" | slack_payload.py "${@}" --json)
+#echo "PAYLOAD ${payload}"
+res=$(curl -s -X POST --data-urlencode "payload=${payload}" $url)
+if [ "$res" != "ok" ]; then
+    echo "ERROR $res"
+    echo $payload | python -m json.tool
+fi
