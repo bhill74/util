@@ -3,6 +3,30 @@
 . ${HOME}/util/slack/settings.sh
 . ${HOME}/util/kramdown/settings.sh
 
+function usage() {
+    echo "Utility for translating kramdown markup text to post to a slack channel"
+    echo "Usage: $(basename $0) [-c <channel>] [-u <username>] [-t <text>] [-e <emoji>] [-h]"
+    cat << EOF
+
+Options:
+    -c/--channel        The channel to post this message to or a nickname can be provided if they are defined in the slack.cfg file.
+    -u/--username       The alternative name to display with this post.
+    -t/--text           The alternative text to use that will showup on desktop notifications.
+    -e/--emoji          The emoji to associate with the post (Note: Must already exist in Slack and does not require the ':' characters)
+    -h                  Displays this menu.
+
+EOF
+}
+
+
+while getopts 'h' o; do
+    case $o in
+        h)
+            usage
+            exit 1
+    esac
+done
+
 url=$(slack_url.py)
 content=$(cat -)
 body=$(echo -e "$content" | kramdown -o slack)

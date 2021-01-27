@@ -2,5 +2,26 @@
 
 . ${HOME}/util/slack/settings.sh
 
+function usage() {
+    echo "Utility for translating text from STDIN and posting to a slack channel"
+    echo "Usage: $(basename $0) [-c <channel>] [-h]"
+    cat << EOF
+
+Options:
+    -c/--channel        The channel to post this message to or a nickname can be provided if they are defined 
+in the slack.cfg file.
+    -h                  Displays this menu.
+
+EOF
+}
+
+while getopts 'h' o; do
+    case $o in
+        h)
+            usage
+            exit 1
+    esac
+done
+
 msg=$(cat -)
-echo -e "~~~\n${msg}\n~~~" | slack_send -u "Slack Pipe (from $USER)" -e 'computer' -t "$msg" "${@}"
+echo -e "~~~\n${msg}\n~~~" | toslack -u "Slack Pipe (from $USER)" -e 'computer' -t "$msg" "${@}"
