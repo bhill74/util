@@ -4,7 +4,7 @@
 . ${HOME}/util/kramdown/settings.sh
 
 function usage() {
-    echo "Utility for translating kramdown markup text to post to a slack channel"
+    echo "Utility for translating kramdown markup text from STDIN and posting to a slack channel"
     echo "Usage: $(basename $0) [-c <channel>] [-u <username>] [-t <text>] [-e <emoji>] [-h]"
     cat << EOF
 
