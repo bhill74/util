@@ -8,20 +8,18 @@ function usage() {
     cat << EOF
 
 Options:
-    -c/--channel        The channel to post this message to or a nickname can be provided if they are defined 
-in the slack.cfg file.
+    -c/--channel        The channel to post this message to or a nickname can be provided 
+                        if they are defined in the slack.cfg file.
     -h                  Displays this menu.
 
 EOF
 }
 
-while getopts 'h' o; do
-    case $o in
-        h)
-            usage
-            exit 1
-    esac
-done
+if [[ " ${@} " =~ " -h " ]]
+then
+    usage
+    exit 1
+fi
 
 msg=$(cat -)
 echo -e "~~~\n${msg}\n~~~" | toslack -u "Slack Pipe (from $USER)" -e 'computer' -t "$msg" "${@}"
