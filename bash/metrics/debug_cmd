@@ -15,6 +15,35 @@ valgrind_mem_opts=("-v" "--leak-check=full" \
 	       "--error-limit=no")
 callgrind_ops=("--trace-children=yes")
 
+memusage_interval=0.5
+function now()
+{
+    printf '%.3f' $(date +%s.%N)
+}
+
+function memusage_exec()
+{
+    local ref=$(now)
+    "${@}" &
+    local pid=$!
+
+    echo "Time,Memory(kB)" | tee memusage.txt
+    while true
+    do
+        n=$(now)
+        mem=$(pmap -x $pid | grep total | awk '{print $3}')
+        if [ -z "$mem" ]
+        then
+            break
+        fi
+       
+        d=$(perl say "$n - $ref") 
+        echo $(printf "%0.3f" $d),$mem | tee -a memusage.txt
+        sleep $memusage_interval 
+    done
+    wait
+}
+
 cmd=${NAME:1:${#NAME}-1}
 pre=""
 for arg in "$@"; do
@@ -38,6 +67,13 @@ for arg in "$@"; do
 			cmd=$(echo $arg | sed "s/-gdbc=//")
 			gdb_cmds=("${gdb_cmds[@]}" -ex "$cmd")
 			;;
+                -memusage)
+                        method=memusage
+                        ;;
+                -memusage=*)
+                        method=memusage
+                        memusage_interval=$(echo $arg | sed "s/-memusage=//")
+                        ;;
 		-memory)
 			method=memory
 			;;
@@ -68,6 +104,10 @@ case $method in
                 echo "** GDB (${gdb_cmds[@]}) **"
 		gdb "${gdb_cmds[@]}" -ex run --args $fcmd "${args[@]}" 
 		;;
+        memusage)
+                echo "** Memory Usage **"
+                memusage_exec $fcmd "${args[@]}"
+                ;;
 	memory)
 		echo "** Valgrind **"
                 log_file=VALGRIND.$(basename $cmd).$$.out
