@@ -1,0 +1,3 @@
+#!/bin/bash
+read < /dev/tty
+echo $REPLY
