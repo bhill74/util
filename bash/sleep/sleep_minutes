@@ -1,4 +1,4 @@
 #!/bin/bash
 
-source $PWD/sleep_util.sh
+source ${PWD}/sleep_util.sh
 countdown $(($1*60)) $2

@@ -3,5 +3,5 @@
 later=$(date --date="$1" +%s)
 now=$(date +%s)
 diff=$(($later-$now))
-source $PWD/sleep_util.sh
+source ${PWD}/sleep_util.sh
 countdown $diff $2
