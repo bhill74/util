@@ -9,8 +9,8 @@ import time
 try:
     opts, other = \
         getopt.getopt(sys.argv[1:],
-                      "t:i:nhd:",
-                      ("tag=", "ids=", "noopt", "delay=", "help"))
+                      "t:i:nhd:r:",
+                      ("tag=", "ids=", "noopt", "delay=", "ref=", "help"))
 except getopt.GetoptError as err:
     print(str(err))
     sys.exit(2)
@@ -26,6 +26,7 @@ def usage():
     print("  -h, --help         Display this help information")
     print("  -t, --tag          The DSIM tag to use")
     print("  -i, --ids          The regression IDs to use")
+    print("  -r, --ref          The gitlab hash reference to use for the project")
     print("  -d, --delay        The delay per submission, in seconds")
     print("  -n, --noopt        "
           "Perform no operation, just display the access URLs and arguments\n")
@@ -36,6 +37,7 @@ params = {'DSIM_TAG': 'UNKNOWN', 'DB_ID': -1}
 ids = []
 preview = 0
 delay = 10
+ref = None
 for o, a in opts:
     if o in ('-h', '--help'):
         usage()
@@ -50,6 +52,9 @@ for o, a in opts:
     if o in ('-d', '--delay'):
         delay = int(a)
 
+    if o in ('-r', '--ref'):
+        ref = a
+
     if o in ('-n', '--noopt'):
         preview = 1
 
@@ -59,7 +64,9 @@ num = len(ids)
 for rid in ids:
     num -= 1
     params['DB_ID'] = rid
-    r = pipe.launch('master', params)
-    print("Submitted: {}".format(r['id']))
+    if ref:
+        params['GIT_SHA'] = ref
+    p = pipe.launch('master', params)
+    print("Submitted: {}".format(p.pipeline_id))
     if num > 0:
         time.sleep(delay)
