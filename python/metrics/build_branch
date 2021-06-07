@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -b
 
 import os
 import sys
 import getopt
-import project
+import gitlab
 
 try:
     opts, other = \
@@ -44,7 +44,7 @@ for o, a in opts:
     if o in ('-n', '--noopt'):
         preview = 1
 
-pipelines = project.Pipelines('dsim/source', preview=preview)
+pipelines = gitlab.Pipelines('dsim/source', preview=preview)
 p = pipelines.launch(branch, params)
 print("Submitted: {}".format(p.pipeline_id))
 p.wait()

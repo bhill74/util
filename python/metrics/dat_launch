@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -b
 
 import os
 import sys
 import getopt
-import project
+import gitlab
 import time
 
 try:
@@ -58,7 +58,7 @@ for o, a in opts:
     if o in ('-n', '--noopt'):
         preview = 1
 
-pipe = project.Pipelines('time0/dsim-acceptance-scripts', preview=preview)
+pipe = gitlab.Pipelines('time0/dsim-acceptance-scripts', preview=preview)
 
 num = len(ids)
 for rid in ids:
