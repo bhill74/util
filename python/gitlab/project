@@ -1,17 +1,18 @@
-#!/usr/bin/python3 -b
+#!/usr/bin/python3
 
 import os
 import sys
 import getopt
 import gitlab
 import json
+import re
 
 
 try:
     opts, other = getopt.getopt(sys.argv[1:],
                                 "t:d:p:o:i:nh",
                                 ("token=", "domain=", "project=",
-                                 "id=", "operation=",
+                                 "operation=",
                                  "noopt",
                                  "help"))
 except getopt.GetoptError as err:
@@ -30,8 +31,7 @@ def usage():
     print("  -t, --token        The GitLab token to use in the query")
     print("  -d, --domain       The GitLab domain")
     print("  -p, --project      The full project name from the GitLab server")
-    print("  -i, --id           The ID of the pipeline")
-    print("  -o, --operation    The operation to perform on the pipeline")
+    print("  -o, --operation    The operation to perform on the project")
     print("  -n, --noopt        Perform no operations\n")
     print("Report bugs to: brian.hill@metrics.ca\n")
 
@@ -40,7 +40,6 @@ project_name = 0
 domain = 0
 token = 0
 operation = None
-pipeline_id = 0
 preview = 0
 
 for o, a in opts:
@@ -57,28 +56,35 @@ for o, a in opts:
     if o in ('-p', '--project'):
         project_name = a
 
-    if o in ('-i', '--id'):
-        pipeline_id = a
-
     if o in ('-o', '--operation'):
         operation = a
 
     if o in ('-n', '--noopt'):
         preview = 1
 
-pipeline = gitlab.Pipeline(project_name, pipeline_id, preview=preview)
+project = gitlab.Project(project_name, preview=preview)
 
-if operation == "hierarchy":
-    print(json.dumps(pipeline.hierarchy(), indent=2))
+if operation == "info":
+    print(json.dumps(project.info(), indent=2))
 
-if operation == "history":
-    print(json.dumps(pipeline.history(), indent=2))
+match = re.match('^artifacts=(.*)$', operation)
+if match:
+    branch = None
+    job_name = 'default'
+    filename = 'default.zip'
+    items = match.group(1).split(':')
 
-elif operation == "status":
-    print(pipeline.status())
+    if len(items) == 3:
+        branch = items[0]
+        job_name = items[1]
+        filename = items[2]
 
-elif operation == "overallStatus":
-    print(pipeline.overallStatus())
+    elif len(items) == 2:
+        job_name = items[0]
+        filename = items[1]
 
-elif operation == "info":
-    print(json.dumps(pipeline.info()))
+    elif len(items) == 1:
+        job_name = items[0]
+        filename = "{}.zip".format(job_name)
+
+    project.artifactsByName(branch, job_name, filename)

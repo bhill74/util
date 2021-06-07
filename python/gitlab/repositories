@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -b
 
 import os
 import sys
 import getopt
-import project
+import gitlab
 
 try:
     opts, other = \
@@ -36,5 +36,5 @@ for o, a in opts:
         preview = 1
 
 
-repo = project.Repositories(name, preview=preview)
+repo = gitlab.Repositories(name, preview=preview)
 print(" ".join(repo.names()))

@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -b
 
 import os
 import sys
 import getopt
-import project
+import gitlab
 
 
 try:
@@ -122,7 +122,7 @@ key_headers.sort()
 table_headers += key_headers
 table_rows = []
 
-pipe = project.Pipelines(project_name, preview=preview)
+pipe = gitlab.Pipelines(project_name, preview=preview)
 
 
 def format_table(headers, matrix,
@@ -139,6 +139,7 @@ def format_table(headers, matrix,
                     for format, cell, width in
                     zip(row_format, row, col_widths))
                 for row_format, row in zip(table_format, table))
+
 
 for pl in pipe.query(params, token=token):
     table_rows.append([])

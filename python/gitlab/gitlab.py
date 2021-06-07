@@ -1,4 +1,4 @@
-#!/usr/bin/python3 
+#!/usr/bin/python3
 
 import os
 import json
@@ -11,6 +11,14 @@ import time
 def parseTrace(trace):
     others = []
     for line in trace.split("\n"):
+        line = re.sub('^ *pipeline ', '', line)
+        line = re.sub("'", '"', line)
+        line = re.sub(": ", ":", line)
+        line = re.sub(', "', ',"', line)
+        line = re.sub(":False", ":false", line)
+        line = re.sub(":True", ":true", line)
+        line = re.sub(":None", ":null", line)
+
         try:
             obj = json.loads(line)
         except ValueError:
@@ -22,16 +30,32 @@ def parseTrace(trace):
 
 
 def download(response, output):
+    if response.status_code != 200:
+        info = json.loads(response.text)
+        msg = info['message'] if 'message' in info else "{} Unknown".format(response.status_code) 
+        print("Unable to download ({})".format(msg))
+        return 
+
+    print("Downloading ({}):".format(output), end='', flush=True)
+    count = 0
     with open(output, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=1024):
+        for chunk in response.iter_content(chunk_size=2048):
+            count += 1
+            if count % 80 == 0:
+                print(".", end='', flush=True)
             if chunk:
                 f.write(chunk)
+
+        f.close()
+        print(" done!")
 
 
 def isCompleteStatus(status):
     return True if status is None or status in ['success', 'failed'] \
             else False
 
+
+history_props = ['status', 'name', 'web_url', 'variables']
 
 # ********************************************************************************
 # Name: Base
@@ -68,12 +92,15 @@ class Base:
 
         return requests.get(url, headers=headers, data=data, stream=stream)
 
-    def getJSON(self, url, headers={}, data={}, stream=False, token=None):
-        return json.loads(self.get(url, headers=headers, data=data,
-                          stream=stream, token=token).text)
+    def getJSON(self, url, headers={}, data={}, stream=False, token=None, 
+                default=None):
+        r = self.get(url, headers=headers, data=data, stream=stream, token=token)
+        if r.status_code != 200:
+            return default
+        return json.loads(r.text)
 
     def download(self, url, output, token=0):
-        download(self.get(url, stream=True, token=token), output)
+        return download(self.get(url, stream=True, token=token), output)
 
     def access_token(self):
         if self._access_token:
@@ -152,7 +179,7 @@ class Base:
                 print("VARS: ", fields)
                 break
 
-            for res in self.getJSON(url, data=fields, token=token):
+            for res in self.getJSON(url, data=fields, token=token, default=[]):
                 if res == 'error' or res == 'message':
                     return results
 
@@ -174,7 +201,8 @@ class Base:
 
                 # If the VARIABLES are something to filter on.
                 if 'variables' in params:
-                    variables = self.variables(project, res['id'], token=token)
+                    variables = Base.variables(self, project, res['id'],
+                                               token=token)
                     if 'message' in variables:
                         print("Error. {}".format(variables['message']))
                         return
@@ -183,19 +211,18 @@ class Base:
                     res['variable_values'] = {}
                     count = 0
 
-                    for variable in variables:
-                        k = variable['key']
-                        res['variable_names'].append(k)
-                        if k in params['variables']:
-                            if params['variables'][k] is False:
+                    for name in variables:
+                        res['variable_names'].append(name)
+                        if name in params['variables']:
+                            if params['variables'][name] is False:
                                 count = 0
                                 break
 
-                            if params['variables'][k] is True or \
-                               params['variables'][k] == variable['value']:
+                            if params['variables'][name] is True or \
+                               params['variables'][name] == variables[name]:
                                 count += 1
 
-                            res['variable_values'][k] = variable['value']
+                            res['variable_values'][name] = variables[name]
 
                     if count != len(params['variables']):
                         continue
@@ -209,31 +236,58 @@ class Base:
 
         return results
 
+    def project(self, project, token=None):
+        url = "{}".format(Base.project_api(self, project))
+        return self.getJSON(url, token=token, default={})
+
     def pipeline(self, project, pipeline_id, token=None):
         url = "{}/{}".format(Base.pipelines_api(self, project),
                              pipeline_id)
-        return self.getJSON(url, token=token)
+        return self.getJSON(url, token=token, default={})
 
     def job(self, project, job_id, token=None):
         url = "{}/{}".format(Base.jobs_api(self, project),
                              job_id)
-        return self.getJSON(url, token=token)
+        return self.getJSON(url, token=token, default={})
 
     def variables(self, project, pipeline_id, token=None):
         url = "{}/{}/variables".format(Base.pipelines_api(self, project),
                                        pipeline_id)
-        return self.getJSON(url, token=token)
+        results = {}
+        for v in self.getJSON(url, token=token, default={}):
+            results[v['key']] = v['value']
 
-    def artifacts(self, project, job_id, output, token=None):
-        url = "{}/jobs/{}/artifacts".format(
-                Base.pipelines_api(self, project),
+        return results
+
+    def artifactsById(self, project, job_id, output, token=None):
+        if not output:
+            info = Base.job(self, project, job_id)
+            name = info['name'] if 'name' in info else 'default'
+            output = "{}.zip".format(name)
+
+        url = "{}/{}/artifacts".format(
+                Base.jobs_api(self, project),
                 job_id)
-        self.download(url, token=token)
+        self.download(url, output, token=token)
+
+    def artifactsByName(self, project, branch, job_name, output, token=None):
+        if not branch:
+            info = Base.project(self, project)
+            branch = info['default_branch'] if 'default_branch' in info else 'master'
+
+        if not output:
+            output = "{}.zip".format(job_name)
+
+        url = "{}/jobs/artifacts/{}/download?job={}".format(
+                Base.project_api(self, project),
+                branch,
+                urllib.parse.quote_plus(str(job_name)))
+        self.download(url, output, token=token)
 
     def jobs(self, project, pipeline_id, token=None):
         url = "{}/{}/jobs".format(Base.pipelines_api(self, project),
                                   pipeline_id)
-        return self.getJSON(url, token=token)
+        return self.getJSON(url, token=token, default=[])
 
     def trace(self, project, job_id, token=None):
         url = Base.project_api(self, project) + "/jobs/{}/trace".format(job_id)
@@ -267,6 +321,9 @@ class Project(Base):
     def repository_api(self):
         return Base.repository_api(self, self.project)
 
+    def info(self):
+        return Base.project(self, self.project)
+
     def launch(self, ref, params={}, token=None):
         r = Base.launch(self, self.project, ref, params=params, token=token)
         return Pipeline(self.project, r['id'], self.domain, self.preview)
@@ -285,9 +342,13 @@ class Project(Base):
     def variables(self, pipeline_id, token=None):
         return Base.variables(self, self.project, pipeline_id, token=token)
 
-    def artifacts(self, job_id, output, token=None):
-        return Base.artifacts(self, self.project, job_id, output,
-                              token=token)
+    def artifactsById(self, job_id, output, token=None):
+        return Base.artifactsById(self, self.project, job_id, output,
+                                  token=token)
+
+    def artifactsByName(self, branch, job_name, output, token=None):
+        return Base.artifactsByName(self, self.project, branch, job_name, output,
+                                    token=token)
 
     def jobs(self, pipeline_id, token=None):
         jobs = Base.jobs(self, self.project, pipeline_id, token=token)
@@ -337,10 +398,16 @@ class Pipeline(Project):
     def trace(self, job_id, token=None):
         return Project.trace(self, job_id, token=token)
 
+    def variables(self, token=None):
+        return Project.variables(self, self.pipeline_id, token=token)
+
     def info(self, token=None):
         return Base.pipeline(self, self.project, self.pipeline_id)
 
     def attr(self, name, token=None):
+        if name in 'variables':
+            return self.variables(token=token)
+
         r = self.info()
         if name in r:
             return r[name]
@@ -348,10 +415,16 @@ class Pipeline(Project):
         return None
 
     def attrs(self, names, token=None):
-        r = self.info()
         result = {}
+        if 'variables' in names:
+            result['variables'] = self.variables(token=token)
+            if len(names):
+                return result
+
+        r = self.info()
         for name in names:
-            result[name] = r[name] if name in r else None
+            if name in r:
+                result[name] = r[name]
 
         return result
 
@@ -378,31 +451,21 @@ class Pipeline(Project):
         return status
 
     def hierarchy(self, props=None, token=None):
-        children = {'id': self.pipeline_id,
-                    'jobs': []}
+        info = {'id': self.pipeline_id, 'jobs': []}
 
         if props:
-            children.update(self.attrs(props, token=token))
+            info.update(self.attrs(props, token=token))
 
-        for job in Base.jobs(self, self.project,
-                             self.pipeline_id, token=token):
-            info = {'id': job['id'], 'pipelines': []}
-            if props:
-                for prop in props:
-                    info[prop] = job[prop] if prop in job else None
+        for job in self.jobs(token=token):
+            info['jobs'].append(job.hierarchy(props=props, token=token))
 
-            children['jobs'].append(info)
+        return info
 
-            j = Job(self.project, self.pipeline_id, job['id'],
-                    self.domain, self.preview)
-            for pipeline in j.pipelines(token=token):
-                h = pipeline.hierarchy(props=props, token=token)
-                children['jobs'][-1]['pipelines'].append(h)
+    def history(self, token=None):
+        return self.hierarchy(history_props, token=token)
 
-        return children
-
-    def artifacts(self, job_name, token=None):
-        Project.artifacts(job_name, token=token)
+    def artifacts(self, job_id, output, token=None):
+        Project.artifactsById(self, job_id, output, token=token)
 
     def wait(self, token=None):
         while True:
@@ -433,6 +496,15 @@ class Job(Pipeline):
 
         return None
 
+    def attrs(self, names, token=None):
+        r = self.info()
+        result = {}
+        for name in names:
+            if name in r:
+                result[name] = r[name]
+
+        return result
+
     def status(self, token=None):
         return self.attr('status', token=token)
 
@@ -452,7 +524,7 @@ class Job(Pipeline):
         return Pipeline.trace(self, self.job_id, token=token)
 
     def artifacts(self, output, token=None):
-        return Pipeline.artifacts(self, self.job_id, token=token)
+        return Pipeline.artifactsById(self, self.job_id, output, token=token)
 
     def pipelines(self, token=None):
         result = []
@@ -467,6 +539,20 @@ class Job(Pipeline):
             result.append(p)
 
         return result
+
+    def hierarchy(self, props=None, token=None):
+        info = {'id': self.job_id, 'pipelines': []}
+        if props:
+            info.update(self.attrs(props, token=token))
+
+        for pipeline in self.pipelines(token=token):
+            h = pipeline.hierarchy(props=props, token=token)
+            info['pipelines'].append(h)
+
+        return info
+
+    def history(self, token=None):
+        return self.hierarchy(history_props, token=token)
 
     def wait(self):
         while True:

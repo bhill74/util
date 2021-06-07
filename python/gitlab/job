@@ -5,6 +5,7 @@ import sys
 import getopt
 import gitlab
 import json
+import re
 
 
 try:
@@ -30,7 +31,7 @@ def usage():
     print("  -t, --token        The GitLab token to use in the query")
     print("  -d, --domain       The GitLab domain")
     print("  -p, --project      The full project name from the GitLab server")
-    print("  -i, --id           The ID of the pipeline")
+    print("  -i, --id           The ID of the job")
     print("  -o, --operation    The operation to perform on the pipeline")
     print("  -n, --noopt        Perform no operations\n")
     print("Report bugs to: brian.hill@metrics.ca\n")
@@ -40,7 +41,7 @@ project_name = 0
 domain = 0
 token = 0
 operation = None
-pipeline_id = 0
+job_id = 0
 preview = 0
 
 for o, a in opts:
@@ -58,7 +59,7 @@ for o, a in opts:
         project_name = a
 
     if o in ('-i', '--id'):
-        pipeline_id = a
+        job_id = a
 
     if o in ('-o', '--operation'):
         operation = a
@@ -66,19 +67,34 @@ for o, a in opts:
     if o in ('-n', '--noopt'):
         preview = 1
 
-pipeline = gitlab.Pipeline(project_name, pipeline_id, preview=preview)
+job = gitlab.Job(project_name, 0, job_id, preview=preview)
 
 if operation == "hierarchy":
-    print(json.dumps(pipeline.hierarchy(), indent=2))
+    print(json.dumps(job.hierarchy(), indent=2))
 
 if operation == "history":
-    print(json.dumps(pipeline.history(), indent=2))
+    print(json.dumps(job.history(), indent=2))
 
 elif operation == "status":
-    print(pipeline.status())
+    print(job.status())
 
 elif operation == "overallStatus":
-    print(pipeline.overallStatus())
+    print(job.overallStatus())
+
+elif operation == "trace":
+    print(job.trace())
 
 elif operation == "info":
-    print(json.dumps(pipeline.info()))
+    print(json.dumps(job.info(), indent=2))
+
+match = re.match('^artifacts(=(.*))?$', operation)
+if match:
+    filename = match.group(2)
+    if not filename:
+        info = job.info()
+        if 'artifacts_file' in info and 'filename' in info['artifacts_file']:
+            filename = info['artifacts_file']['filename']
+        else:
+            filename = "{}.artifacts.tar.gz".format(job_id)
+
+    job.artifacts(filename)
