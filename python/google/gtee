@@ -1,0 +1,29 @@
+#!/bin/bash
+
+argv=()
+files=()
+append=''
+
+while [[ $# -gt 0 ]]
+do
+    case "$1" in
+        -a|--append)
+            append='-a'
+            ;;
+        -*)
+            argv+=("$1")
+            ;;
+        *)
+            files+=("$1")
+    esac
+    shift
+done 
+
+p=()
+for f in "${files[@]}"
+do
+    exec {fd}> >(todoc -q -f $f ${append})
+    p+=($fd)
+done
+
+cd /dev/fd && exec tee ${argv} "${p[@]}"

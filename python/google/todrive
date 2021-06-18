@@ -1,0 +1,98 @@
+#!/usr/bin/python3 -b
+
+import os
+import sys
+import select
+import drive
+import getopt
+import io
+
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                      "f:p:m:aqh",
+                      ("file=", "path=", "mimeType", "append", "quiet", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-f/--file <filename>] "
+          "[-p/--path <path>] "
+          "[-m/--mimeType <type>] "
+          "[-a/--append] "
+          "[-q/--quiet] "
+          "[-h/--help] [-n/--noopt]".format(program))
+    print("Used to launch the DAT jobs.\n")
+    print("  -h, --help         Display this help information")
+    print("  -f, --file         The file name to read/create")
+    print("  -p, --path         The path to store the file in Google Drive")
+    print("  -m, --mimeType     The mimeType to use")
+    print("  -a, --append       Append to existing file")
+    print("  -q, --quiet        Operate in quiet mode")
+    print("  -n, --noopt        "
+          "Perform no operation, just display the access URLs and arguments\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+filename = 'unknown.txt'
+content = {}
+path = ''
+preview = False
+append = False
+quiet = False
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-f', '--file'):
+        content['file'] = a
+        filename = os.path.basename(a)
+
+    if o in ('-p', '--path'):
+        path = a
+
+    if o in ('-m', '--mimeType'):
+        content['mimeType'] = a
+
+    if o in ('-a', '--append'):
+        append = True
+
+    if o in ('-q', '--quiet'):
+        quiet = True
+
+    if o in ('-n', '--noopt'):
+        preview = True
+
+gd = drive.GDrive('fromdrive')
+direc = gd.resolve(path, create=True)[0]
+
+if select.select([sys.stdin, ], [], [], 0.0)[0]:
+    content['stream'] = io.BytesIO()
+    content['stream'].write(bytearray(sys.stdin.read().encode()))
+    content.pop('file')
+
+elif 'file' not in content:
+    print("No file has been provided to be uploaded")
+    exit(2)
+
+elif not os.path.exists(content['file']):
+    print("File {} does not exist and cannot be uploaded".format(content['file']))
+    exit(2)
+
+file = None
+if append:
+    files = direc.resolve(filename, create=False)
+    if len(files) != 0:
+        file = files[-1]
+        file.append(content)
+
+if not file:
+    file = direc.createFile(filename, content)
+
+if not quiet:
+    print(file.getPaths()[0])

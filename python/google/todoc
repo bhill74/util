@@ -1,0 +1,3 @@
+#!/bin/bash
+
+todrive -m "application/vnd.google-apps.document" "${@}"
