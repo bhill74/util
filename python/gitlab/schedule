@@ -1,0 +1,93 @@
+#!/usr/bin/python3 -b
+
+import os
+import sys
+import getopt
+import gitlab
+import json
+import re
+
+
+try:
+    opts, other = getopt.getopt(sys.argv[1:],
+                                "t:d:p:o:i:nh",
+                                ("token=", "domain=", "project=",
+                                 "id=", "operation=",
+                                 "noopt",
+                                 "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--token <TOKEN>] [-d/--domain <DOMAIN>] "
+          "[-p/--project <PROJECT>] "
+          "[-o/--operation <OP>]"
+          "[-h/--help]".format(program))
+    print("Used to report information from a specific schedule")
+    print("  -h, --help         Display this help information")
+    print("  -t, --token        The GitLab token to use in the query")
+    print("  -d, --domain       The GitLab domain")
+    print("  -p, --project      The full project name from the GitLab server")
+    print("  -i, --id           The ID of the pipeline")
+    print("  -o, --operation    The operation to perform on the schedule")
+    print("  -n, --noopt        Perform no operations\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+project_name = 0
+domain = 0
+token = 0
+operation = None
+schedule_id = 0
+preview = 0
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-t', '--token'):
+        token = a
+
+    if o in ('-p', '--project'):
+        project_name = a
+
+    if o in ('-i', '--id'):
+        schedule_id = a
+
+    if o in ('-o', '--operation'):
+        operation = a
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+schedule = gitlab.Schedule(project_name, schedule_id, preview=preview)
+
+if operation == "variables":
+    print(json.dumps(schedule.variables(), indent=2))
+
+elif operation == "description":
+    print(schedule.description())
+
+elif operation == "reference":
+    print(schedule.reference())
+
+elif operation == "info":
+    print(json.dumps(schedule.info(), indent=2))
+
+else:
+    p = re.compile('^add:(\w+?)=(\S+)')
+    m = p.search(operation)
+    if m:
+        schedule.add(m[1], m[2])
+
+    p = re.compile('^delete:(\w+)')
+    m = p.search(operation)
+    if m:
+        schedule.delete(m[1])

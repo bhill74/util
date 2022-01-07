@@ -37,7 +37,7 @@ function memusage_exec()
             break
         fi
        
-        d=$(perl say "$n - $ref") 
+        d=$(perl -E "say $n - $ref")
         echo $(printf "%0.3f" $d),$mem | tee -a memusage.txt
         sleep $memusage_interval 
     done

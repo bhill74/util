@@ -3,5 +3,8 @@
 BASE="../../"
 source $BASE/functions
 
+initialize $HOME/lib/slack
+install_dir $HOME/lib/slack '*.py'
+
 initialize $HOME/util/slack
 install_other $HOME/util/slack

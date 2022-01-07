@@ -1,0 +1,7 @@
+#!/bin/bash
+
+base=$(dirname $BASH_SOURCE)
+. ${base}/space_utils.sh
+
+space_args "${@}"
+check_regressions /scratch/project

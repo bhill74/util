@@ -3,8 +3,5 @@
 BASE="../../"
 source $BASE/functions
 
-initialize $HOME/lib/gitlab
-install_dir $HOME/lib/gitlab '*.py'
-
 initialize $HOME/util/gitlab
 install_other $HOME/util/gitlab

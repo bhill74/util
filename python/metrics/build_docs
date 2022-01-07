@@ -1,0 +1,66 @@
+#!/usr/bin/python3 -b
+
+import os
+import sys
+import getopt
+import gitlab
+
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                      "b:hno:",
+                      ("branch=", "output=", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-b/--branch <BRANCH>] ".format(program))
+    print("Used to create docs.\n")
+    print("  -h, --help         Display this help information")
+    print("  -b, --branch       The branch to create source code docs from")
+    print("  -o, --output       The name for the downloaded file(s)")
+    print("  -n, --noopt        "
+          "Perform no operation, just display the access URLs and arguments\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+params = {'DEPLOY': 'Doxygen'}
+branch = 'DEV'
+output = 'archive'
+preview = 0
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-b', '--branch'):
+        branch = a
+
+    if o in ('-f', '--format'):
+        output = a
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+
+pipelines = gitlab.Pipelines('dsim/source', preview=preview)
+p = pipelines.launch(branch, params)
+print("Submitted: {}".format(p.pipeline_id))
+p.wait()
+
+# Get the last job and download the artifacts
+jobs = p.jobs()
+job = jobs[-1]
+print("Using Job: {}".format(str(job)))
+
+status = job.status()
+print("Status: {}".format(status))
+if not status == "success":
+    exit(1)
+
+# Download artifacts
+job.artifacts(output)

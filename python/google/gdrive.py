@@ -1,11 +1,11 @@
-import webbrowser
-import base
+import gbase
 import os
 import re
 import pkg_resources
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
 from apiclient import errors
 from apiclient import http
+from apiclient import discovery
 import sys
 import io
 
@@ -74,7 +74,7 @@ def get_pattern(pattern):
     return re.compile('^{}$'.format(re.sub('\\*', '.+', pattern)))
 
 
-class GDriveBase(base.GoogleAPI):
+class GDriveBase(gbase.GoogleAPI):
     def __init__(self, scope, application="drive",
                  credentials=None, service=None):
         client_file = \
@@ -82,11 +82,19 @@ class GDriveBase(base.GoogleAPI):
         client_file = os.getenv("GOOGLE_DRIVE_CLIENT_ID", client_file)
 
         scopes = ('.metadata.readonly', '.file', '')
-        base.GoogleAPI.__init__(self, "drive",
-                                ["auth/drive{}".format(s) for s in scopes],
-                                client_file, application,
-                                credentials=credentials,
-                                service=service)
+        gbase.GoogleAPI.__init__(self, "drive",
+                                 ["auth/drive{}".format(s) for s in scopes],
+                                 client_file, application,
+                                 credentials=credentials,
+                                 service=service)
+
+    def get_service(self):
+        if not self.service:
+            self.service = \
+                discovery.build(self.api, 'v3',
+                                credentials=self.get_credentials())
+
+        return self.service
 
     def get_files(self):
         return self.get_service().files()
@@ -147,6 +155,9 @@ class GItem(GDriveBase):
                    for g in parents['parents']]
         return self.toFolders(results)
 
+    def remove(self):
+        self.get_files().delete(fileId=self.gid).execute()
+
     def getPaths(self):
         paths = ['']
         dirs = [self]
@@ -197,18 +208,6 @@ class GFile(GItem):
             if done:
                 print('Download Complete')
                 return
-
-    def remove(self):
-        self.get_files().delete(fileId=self.gid).execute()
-
-    def getParents(self):
-        parents = self.infoById(self.gid, ['parents'])
-        if len(parents) == 0:
-            return []
-
-        results = [self.infoById(g, ['id', 'name'])
-                   for g in parents['parents']]
-        return self.toFolders(results)
 
     def getDownloadUrl(self):
         links = self.infoById(self.gid, ['webContentLink'])
@@ -417,6 +416,11 @@ class GFolder(GItem):
 
         return result
 
+    def open(self):
+        gbase.GoogleAPI.open(
+                'https://{}/folders/%s'.format(DRIVE_URL_BASE) %
+                self.gid)
+
     def __str__(self):
         return "GDrive: {} ({})".format(self.name, self.gid)
 
@@ -498,10 +502,8 @@ class GDrive(GDriveBase):
     def resolve(self, path, create=False):
         return self.getRootFolder().resolve(path, create=create)
 
-    def open(self, folder_id):
-        webbrowser.open(
-                'https://{}/folders/%s'.format(DRIVE_URL_BASE) %
-                folder_id)
+    def open(self):
+        self.getRootFolder().open()
 
     def __str__(self):
         return "GDrive"

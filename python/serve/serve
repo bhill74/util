@@ -1,0 +1,84 @@
+#!/usr/bin/python3
+import sys
+import signal
+import http.server
+import socketserver
+import os
+import getopt
+
+
+try:
+    opts, other = \
+            getopt.getopt(sys.argv[1:],
+                          "p:r:h",
+                          ("port=", "root=", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-p/--port <port>] [-r/--root <root>] ".format(program))
+    print("Used to launch a simple HTTP server.\n")
+    print("  -h, --help     Display this help information")
+    print("  -p, --port     Control the port used")
+    print("  -r, --root     Control the root of the directory to to be served (default: current working directory)")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+port = 8080
+root = None
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-p', '--port'):
+        port = int(a)
+
+    if o in ('-r', '--root'):
+        root = a
+
+# Customized request handler to override the base directory
+class MyHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, directory=None, **kwargs):
+        if not directory:
+            directory = root
+        super().__init__(*args, directory=directory, **kwargs)
+
+
+# Note ForkingTCPServer does not work on Windows as the os.fork()
+# function is not available on that OS. Instead we must use the
+# subprocess server to handle multiple requests
+server = socketserver.ThreadingTCPServer(('', port), MyHandler)
+
+# Ensures that Ctrl-C cleanly kills all spawned threads
+server.daemon_threads = True
+# Quicker rebinding
+server.allow_reuse_address = True
+
+
+# A custom signal handle to allow us to Ctrl-C out of the process
+def signal_handler(signal, frame):
+    print('Exiting http server (Ctrl+C pressed)')
+    try:
+        if server:
+            server.server_close()
+    finally:
+        sys.exit(0)
+
+
+# Install the keyboard interrupt handler
+signal.signal(signal.SIGINT, signal_handler)
+
+# Now loop forever
+try:
+    while True:
+        sys.stdout.flush()
+        server.serve_forever()
+except KeyboardInterrupt:
+    pass
+
+server.server_close()

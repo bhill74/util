@@ -1,7 +1,5 @@
-#!/usr/bin/python
-
 # import select, json, getopt, sys
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 import os.path
 
 

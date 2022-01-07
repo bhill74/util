@@ -1,3 +1,2 @@
-. ${HOME}/util/paths/settings.sh
+. ${HOME}/lib/slack/include.sh
 path_prepend ${PWD}
-. ${HOME}/lib/config/include.sh

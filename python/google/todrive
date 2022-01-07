@@ -3,7 +3,7 @@
 import os
 import sys
 import select
-import drive
+import gdrive
 import getopt
 import io
 
@@ -26,7 +26,7 @@ def usage():
           "[-a/--append] "
           "[-q/--quiet] "
           "[-h/--help] [-n/--noopt]".format(program))
-    print("Used to launch the DAT jobs.\n")
+    print("Used to transfer content to Google Drive.\n")
     print("  -h, --help         Display this help information")
     print("  -f, --file         The file name to read/create")
     print("  -p, --path         The path to store the file in Google Drive")
@@ -68,13 +68,14 @@ for o, a in opts:
     if o in ('-n', '--noopt'):
         preview = True
 
-gd = drive.GDrive('fromdrive')
+gd = gdrive.GDrive('fromdrive')
 direc = gd.resolve(path, create=True)[0]
 
 if select.select([sys.stdin, ], [], [], 0.0)[0]:
     content['stream'] = io.BytesIO()
     content['stream'].write(bytearray(sys.stdin.read().encode()))
-    content.pop('file')
+    if 'file' in content:
+        content.pop('file')
 
 elif 'file' not in content:
     print("No file has been provided to be uploaded")

@@ -3,5 +3,8 @@
 BASE="../../"
 source $BASE/functions
 
+initialize $HOME/lib/slack
+install_file $HOME/lib/slack include.sh 
+
 initialize $HOME/util/slack
 install_other $HOME/util/slack

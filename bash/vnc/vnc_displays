@@ -7,7 +7,7 @@ function isActive() {
 	local user=$2
 	local num=0
 
-	local proc=$(ps --user $user -f | grep "/usr/bin/Xtigervnc :${disp} " | grep -v grep)
+	local proc=$(ps --user $user -f 2>/dev/null | grep "/usr/bin/Xtigervnc :${disp} " | grep -v grep)
 	local port=$(vnc_get_port "$proc")
 	if [ ! -z "$port" ]; then
 		num=$(netstat -tulpn 2>/dev/null | grep LISTEN | grep ":${port}" | wc -l)
@@ -18,7 +18,7 @@ function isActive() {
 
 ROOTDIR=$(cd $HOME/.. && pwd)
 echo -e "Display\t Userid"
-ls $ROOTDIR/*/.vnc/$(hostname).*.log | sed 's|/|:|g' | sed 's/.log//' | cut -f3,6 -d: | awk -F ':' '{print($2,"\t",$1)}' | sort -k1 -n | while read line; do
+ls $ROOTDIR/*/.vnc/$(hostname).*.log 2>/dev/null | sed 's|/|:|g' | sed 's/.log//' | cut -f3,6 -d: | awk -F ':' '{print($2,"\t",$1)}' | sort -k1 -n | while read line; do
 	disp=$(echo $line | awk '{print $1}')
 	user=$(echo $line | awk '{print $2}')
 	echo "$line $(isActive $disp $user)" 

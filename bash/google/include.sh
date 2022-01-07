@@ -1,2 +1,2 @@
 . ${HOME}/util/python/settings.sh
-pythonpath_append ${PWD}
+pythonpath_prepend ${PWD}

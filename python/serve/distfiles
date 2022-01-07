@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+#initialize $HOME/lib/serve
+#install_dir $HOME/lib/serve '*.py'
+
+initialize $HOME/util/serve
+install_other $HOME/util/serve

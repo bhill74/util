@@ -3,5 +3,8 @@
 BASE="../../"
 source $BASE/functions
 
+initialize $HOME/lib/gitlab
+install_file $HOME/lib/gitlab include.sh
+
 initialize $HOME/util/gitlab
 install_other $HOME/util/gitlab

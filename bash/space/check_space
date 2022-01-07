@@ -1,0 +1,23 @@
+#!/bin/bash
+
+source ${HOME}/util/mail/settings.sh
+source ${HOME}/util/space/settings.sh
+source ${HOME}/util/slack/settings.sh
+source ${HOME}/util/metrics/settings.sh
+source ${HOME}/slack.env
+
+path=$1
+min_limit=${2:-10}
+max_limit=${3:-110}
+target=${4:-brian.hill@metrics.ca}
+
+pushd $path >/dev/null
+percent=$(df . | grep $path | awk '{print $5}' | sed "s/%//")
+if [ "$percent" -gt "$min_limit" ] && [ "$percent" -le "$max_limit" ]; then
+    if [[ $target =~ ^#.* ]]; then
+        msg="$path Is $percent% Full"
+        (echo "# ATTN: $msg" && space_report_min -k -l 1) | slack_send -e full_drive -c "$target" -u "/scratch Monitor" -t "$msg"
+    else 
+        space_report_all -k | kmail -s "Usage Report ($path at ${percent}%)" "$target" 
+    fi
+fi

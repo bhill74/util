@@ -22,7 +22,8 @@ done
 p=()
 for f in "${files[@]}"
 do
-    exec {fd}> >(todoc -q -f $f ${append})
+    d=$(dirname $f)
+    exec {fd}> >(todoc -q -f $f $(if [ "$d" != "." ]; then echo "-p $d"; fi) ${append})
     p+=($fd)
 done
 

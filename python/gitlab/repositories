@@ -37,4 +37,4 @@ for o, a in opts:
 
 
 repo = gitlab.Repositories(name, preview=preview)
-print(" ".join(repo.names()))
+print("\n".join(repo.names()))

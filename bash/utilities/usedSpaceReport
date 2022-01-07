@@ -1,0 +1,77 @@
+#!/bin/bash
+
+directory=${PWD}
+steps=2,2,2
+markdown=0
+
+while getopts "d:s:m" opt; do 
+    case $opt in
+        d)
+            directoy=$OPTARG
+            ;;
+        s)
+            steps=$OPTARG
+            ;;
+        m)
+            markdown=1
+            ;;
+        *)
+            ;;
+    esac
+done
+
+tmp_file=$(mktemp /tmp/space-XXXXXX.txt)
+
+# Recursive function to process the file with
+# increasing depth and filtering.
+function report
+{
+    local count=$1
+    local num=$2
+    local next_num=$(echo $3 | cut -f1 -d,)
+    local levels=$(echo $3 | sed "s/^$next_num,*//")
+    local filter=$4
+
+    awk -F'/' "NF==$count" $tmp_file | \
+       if [ -z "$filter" ]
+       then
+           cat -
+       else
+           grep $filter
+       fi | \
+       sort -n -k1 -r | \
+       head -$num | \
+       while read line; do
+           s=$(echo $line | awk '{print $1}')
+           d=$(echo $line | awk '{print $2}')
+           b=$(printf %*s $(($(($count-$base))*2)) ' ')
+           echo "$s|$(($count-1))|$b$d"
+           if [ ! -z "$next_num" ]
+           then
+               report $(($count+1)) $next_num "$levels" $d
+           fi
+       done 
+}
+    
+num=$(echo $steps | cut -f1 -d,)
+levels=$(echo $steps | sed "s/^$num,*//")
+depth=$(echo $steps | tr -cd , | wc -c)
+nice -10 du -k --max-depth=$(($depth+1)) $directory > $tmp_file
+
+count=$(echo $directory | tr -cd / | wc -c)
+base=$(($count+2))
+
+if [[ $markdown -eq 1 ]]
+then
+    border="\n----|-----|---------"
+fi
+
+(echo -e "Size|Level|Directory${border}" & report $base "$num" "$levels") | \
+    if [[ $markdown -eq 1 ]]
+    then
+        cat -
+    else
+        column -t -s '|' 
+    fi
+
+rm $tmp_file
