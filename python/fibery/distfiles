@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/fibery
+install_dir $HOME/lib/fibery '*.py'
+
+initialize $HOME/util/fibery
+install_other $HOME/util/fibery

@@ -1,0 +1,63 @@
+#!/usr/bin/python3 -b
+
+import getopt
+import metrics
+import sys
+import os
+
+try:
+    opts, other = getopt.getopt(sys.argv[1:],
+                                "d:b:inh",
+                                ("domain=", "browser=",
+                                 "insert",
+                                 "noopt",
+                                 "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+domain = None
+browser = 'firefox'
+preview = 0
+insert = False
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-d/--domain <DOMAIN>] "
+          "[-i/--insert] [-n/--noopt] "
+          "[-h/--help]".format(program))
+    print("Used to extract inforamation "
+          "from a specific bug in fibery.\n")
+    print("  -h, --help         Display this help information")
+    print("  -d, --domain       The Fibery domain")
+    print("  -b, --browser      The browser cookies to use to access " +
+                               "token [default: {}]".format(browser))
+    print("  -i, --insert       To insert the fibery token into the " +
+                               "config file")
+    print("  -n, --noopt        Perform no operations\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-b', '--browser'):
+        browser = a
+
+    if o in ('-i', '--insert'):
+        insert = True
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+base = metrics.Base(domain=domain)
+token = base.new_token(browser=browser)
+
+if token and insert:
+    base.insert_token(token, browser=browser)
