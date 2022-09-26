@@ -1,0 +1,118 @@
+#!/usr/bin/python3 -b
+
+import getopt
+import metrics_fibery
+import sys
+import re
+import os
+import colorama
+from colorama import Fore, Style
+
+
+colorama.init(autoreset=True)
+
+
+try:
+    opts, terms = getopt.getopt(sys.argv[1:],
+                                "t:d:s:",
+                                ("token=", "domain=", "source="))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--token <TOKEN>] [-d/--domain <DOMAIN>] "
+          "[-s/--source <SRC>] "
+          "[-h/--help]".format(program))
+    print("Used to search the comments from a specific source in fibery.\n")
+    print("  -h, --help         Display this help information")
+    print("  -t, --token        The Fibery token to use in the query")
+    print("  -s, --source       The source database to use\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+sources = None
+domain = None
+token = None
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-t', '--token'):
+        token = a
+
+    if o in ('-s', '--source'):
+        if not sources:
+            sources = []
+
+        sources.append(a)
+
+if not sources:
+    sources = metrics_fibery.getDatabaseNames()
+
+terms = [t.lower() for t in terms]
+#term_patterns = [re.compile('({})'.format(t), re.IGNORECASE) for t in terms]
+term_patterns = [re.compile(t, re.IGNORECASE) for t in terms]
+
+
+def terms_inside(terms, line):
+    for t in terms:
+        if t in line:
+            return True
+
+    return False
+
+
+def terms_highlight(terms, line):
+    for t in terms:
+        line = re.sub(t, (Fore.RED + '\g<0>' + Style.RESET_ALL), line)
+        for m in t.finditer(line):
+            s = m.span()
+            ns = Fore.RED + m.group() + Style.RESET_ALL
+            #line = line[:s[0]] + ns + line[s[1]:]
+            #line = 
+
+    return line
+
+
+for s in sources:
+    db = metrics_fibery.getDatabase(s)
+    if not s:
+        continue
+
+    print("Searching: {}".format(Fore.GREEN + s))
+    secrets = []
+    smap = {}
+    n_items = 0
+    for i in db.query():
+        n_items = n_items + 1
+        for s in i['comments/comments']:
+            secrets.append(s['comment/document-secret'])
+            smap[secrets[-1]] = i['fibery/id']
+
+    print(" Number of items: {}".format(Fore.GREEN + str(n_items)))
+
+    docs = metrics_fibery.Documents().getContentBySecrets(secrets)
+    print(" Number of comments: {}".format(Fore.GREEN + str(len(docs))))
+
+    filtered = [d['secret'] for d in docs if terms_inside(terms, d['content'].lower())]
+
+    used = {}
+    for f in filtered:
+        item = db.byFiberyId(smap[f])
+        pid = item.id()
+        if pid not in used:
+            print("{}: {} [{}]".format(Fore.RED + pid, Fore.GREEN + item.name(), Fore.CYAN + item.link()))
+            used[pid] = True
+
+        c = [r['content'] for r in docs if r['secret'] == f]
+        c = [l for l in c[0].split("\n") if terms_inside(terms, l.lower())]
+        c = [terms_highlight(term_patterns, l) for l in c]
+        print("   " + "\n   ".join(c))

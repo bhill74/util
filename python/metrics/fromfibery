@@ -1,0 +1,100 @@
+#!/usr/bin/python3 -b
+
+import getopt
+import metrics_fibery
+import sys
+import os
+import json
+import menu
+
+
+try:
+    opts, other = getopt.getopt(sys.argv[1:],
+                                "t:d:i:flonh",
+                                ("token=", "domain=", "id=",
+                                 "file", "link", "object",
+                                 "noopt",
+                                 "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--token <TOKEN>] [-d/--domain <DOMAIN>] "
+          "[-b/--bug <ID>] "
+          "[-f/--file] [-o/--object] [-n/--noopt] "
+          "[-h/--help]".format(program))
+    print("Used to extract inforamation "
+          "from a specific item in fibery.\n")
+    print("  -h, --help         Display this help information")
+    print("  -t, --token        The Fibery token to use in the query")
+    print("  -d, --domain       The Fibery domain")
+    print("  -i, --id           The ID of the bug/story")
+    print("  -f, --file         The the file(s) attached to the bug")
+    print("  -o, --object       The fibery object information")
+    print("  -n, --noopt        Perform no operations\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+domain = None
+token = None
+pid = 0
+preview = 0
+get_files = False
+get_link = False
+get_object = False
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-t', '--token'):
+        token = a
+
+    if o in ('-i', '--id'):
+        pid = a
+
+    if o in ('-f', '--file'):
+        get_files = True
+
+    if o in ('-l', '--link'):
+        get_link = True
+
+    if o in ('-o', '--object'):
+        get_object = True
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+if pid:
+    item = metrics_fibery.getItem(pid, domain=domain, token=token)
+    if not item:
+        print("Error: No item found with id {}".format(pid))
+        exit(1)
+
+    print("Found: {}/{} - {}".format(pid, item.obj_type(), item.name()))
+
+    if get_files:
+        print(" Downloading files")
+
+        files = item.files()
+        n_files = len(files)
+        if n_files == 0:
+            print("  There are no files attached to this bug")
+            exit()
+
+        files = files if len(files) == 1 else \
+            menu.prompt(files, mapfunc=lambda f: f.filename())
+        for f in files:
+            f.download()
+
+    if get_link:
+        print(item.link())
+
+    if get_object:
+        print(json.dumps(item.info, indent=4))

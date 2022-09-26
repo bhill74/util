@@ -3,5 +3,8 @@
 BASE="../../"
 source $BASE/functions
 
-initialize $HOME/util/gitlab
-install_other $HOME/util/gitlab
+initialize $HOME/lib/metrics
+install_dir $HOME/lib/metrics '*.py'
+
+initialize $HOME/util/metrics
+install_other $HOME/util/metrics

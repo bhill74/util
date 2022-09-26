@@ -1,0 +1,79 @@
+#!/usr/bin/python3 -b
+
+import getopt
+import metrics_fibery
+import sys
+import os
+
+try:
+    opts, other = getopt.getopt(sys.argv[1:],
+                                "t:d:i:f:lonh",
+                                ("token=", "domain=", "id=",
+                                 "file=",
+                                 "noopt",
+                                 "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--token <TOKEN>] [-d/--domain <DOMAIN>] "
+          "[-i/--id <ID>] "
+          "[-f/--file <file>] [-n/--noopt] "
+          "[-h/--help]".format(program))
+    print("Used to extract inforamation "
+          "from a specific bug in fibery.\n")
+    print("  -h, --help         Display this help information")
+    print("  -t, --token        The Fibery token to use in the query")
+    print("  -d, --domain       The Fibery domain")
+    print("  -i, --id           The ID of the bug/story")
+    print("  -f, --file         The file(s) to attach to the bug")
+    print("  -n, --noopt        Perform no operations\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+domain = None
+token = None
+pid = 0
+preview = 0
+files = []
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-t', '--token'):
+        token = a
+
+    if o in ('-i', '--id'):
+        pid = a
+
+    if o in ('-f', '--file'):
+        files.append(a)
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+if pid:
+    item = metrics_fibery.getItem(pid, domain=domain, token=token)
+    if not item:
+        print("Error: No item found with id {}".format(pid))
+        exit(1)
+
+    print("Found: {}/{} - {}".format(pid, item.obj_type(), item.name()))
+
+    for f in files:
+        print(" Attaching file: {}".format(f))
+        if not os.path.exists(f):
+            print(" File does not exist")
+            continue
+
+        ff = metrics_fibery.File(None)
+        ff.set_name(f)
+        ff.upload()
+        item.attach_files(ff)
