@@ -9,3 +9,4 @@ install_dir $HOME/lib/google '*.json'
 
 initialize $HOME/util/google
 install_dir $HOME/util/google 'to*'
+install_dir $HOME/util/google 'from*'

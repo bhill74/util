@@ -1,0 +1,153 @@
+#!/usr/bin/python3 -b
+
+import os
+import sys
+import gdrive
+import getopt
+import json
+import re
+from collections import Counter
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                "i:l:f:p:m:LhqoP:",
+                      ("id=", "location=", "file=", "path=", "mimeType=",
+                       "ls", "quiet", "output", "props=", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-i/--id <id>] [-l/--location <location>] [-t/--target <target>] "
+          "[-L/--ls] "
+          "[-q/--quiet] "
+          "[-h/--help]".format(program))
+    print("Used to transfer content from Google Drive.\n")
+    print("  -h, --help         Display this help information")
+    print("  -i, --id           The ID of the item")
+    print("  -l, --location     The location to access")
+    print("  -t, --target       The target for the download")
+    print("  -L, --ls           List the matching contents only")
+    print("  -q, --quiet        Operate in quiet mode")
+    print("  -o, --output       Send content to stdout")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+def count(items):
+    return Counter(items)
+
+
+filename = 'unknown.txt'
+content = {'location': ''}
+path = ''
+preview = False
+ls = False
+quiet = False
+output = False
+mimeType = False
+props = []
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-i', '--id'):
+        content['id'] = a
+
+    if o in ('-l', '--location'):
+        content['location'] = a
+
+    if o in ('-m', '--mimeType'):
+        mimeType = a
+
+    if o in ('-f', '--file'):
+        content['file'] = a
+        filename = os.path.basename(a)
+
+    if o in ('-p', '--path'):
+        path = a
+
+    if o in ('-L', '--ls'):
+        ls = True
+
+    if o in ('-q', '--quiet'):
+        quiet = True
+
+    if o in ('-o', '--output'):
+        output = True
+
+    if o in ('-n', '--noopt'):
+        preview = True
+
+    if o in ('-P', '--props'):
+        props += a.split(r'\s*,\s')
+
+gd = gdrive.GDrive('fromdrive')
+
+# Resolve the base folder and search pattern
+pattern = None
+if 'id' in content and content['id'] != '':
+    r = [gd.getFileById(content['id'])]
+elif content['location'] == '':
+    r = [gd.getRootFolder()]
+else:
+    r = gd.resolve(content['location'], create=False)
+    if len(r) == 0:
+        dirname = os.path.dirname(content['location'])
+        pattern = "{}*".format(os.path.basename(content['location']))
+        if dirname == '':
+            r = [gd.getRootFolder()]
+        else:
+            r = gd.resolve(dirname, create=False)
+
+tc = count([x.name for x in r])
+
+
+def showInfo(f, c):
+    p = props.copy()
+    print("C", c)
+    if c[f.name] > 1:
+        p += ['id']
+
+    info = ''
+    if len(p):
+        extra = f.infoById(f.gid, p)
+        info = ' {'
+        for k, v in extra.items():
+            info += "{}:{}, ".format(k, str(v))
+
+        info = re.sub(r', $', '}', info)
+
+    print(f.fullPath(filter=content['location'], unique=False), info)
+
+
+# Process every result
+for g in r:
+    if isinstance(g, gdrive.GFile):
+        if ls:
+            showInfo(g, tc)
+        elif output:
+            print(g.text())
+        else:
+            g.download(quiet=quiet, mimeType=mimeType)
+
+    elif ls:
+        dirs = g.getFoldersByPattern(pattern) if pattern else g.getFolders()
+        dirs.sort(key=lambda x: x.name)
+        c = count([x.name for x in dirs])
+        for d in dirs:
+            print("{}/".format(d.fullPath(filter=content['location'], unique=(c[d.name] > 1))))
+
+        files = g.getFilesByPattern(pattern) if pattern else g.getFiles()
+        files.sort(key=lambda x: x.name)
+        c = count([x.name for x in files])
+        for f in files:
+            showInfo(f, c)
+    elif output:
+        print("Output does not apply to more than one result")
+    else:
+        g.download(quiet=quiet)

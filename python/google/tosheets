@@ -1,0 +1,63 @@
+#!/usr/bin/python3 -b
+
+import sys
+import getopt
+import os
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                "hvoc:i:u:",
+                ("help", "version", "open", "cell=", "input=", "update="))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-h/--help] [-i/--input <file>] [-c/--cell <range>] "
+            "[-u/--update] [-k/--keep] "
+            "[-s/--sheet <name>] "
+            "[-o/--open]".format(program))
+    print("Used to send stding to Google Sheets.\n")
+    print("   -h, --help    Display this help information")
+    print("   -v, --version Display the version")
+    print("   -i, --input   Specify a CSV file instead of stdin")
+    print("   -c, --cell    The first (top-left) cell to append")
+    print("   -u, --update  Update the cells instead of appending")
+    print("   -k, --keep    Keep fields as they are without conversion (int or float)")
+    print("   -s, --sheet   Use this sheet, otherwise first visible sheet is used")
+    print("   -o, --open    Open a browser with the newly created sheet")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+open_browser = False
+source = None
+cell = "A1"
+update = False
+keep = False
+sheet = None
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-o', '--open'):
+        open_browser = True
+
+    if o in ('-c', '--cell'):
+        cell = a
+
+    if o in ('-i', '--input'):
+        source = a
+
+    if o in ('-u', '--update'):
+        update = True
+
+    if o in ('-k', '--keep'):
+        keep = True
+
+    if o in ('-s', '--sheet'):
+        sheet = True
+

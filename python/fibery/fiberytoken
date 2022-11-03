@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -b
 
 import getopt
-import metrics
+import metrics_fibery
 import sys
 import os
 
@@ -56,7 +56,7 @@ for o, a in opts:
     if o in ('-n', '--noopt'):
         preview = 1
 
-base = metrics.Base(domain=domain)
+base = metrics_fibery.Base(domain=domain)
 token = base.new_token(browser=browser)
 
 if token and insert:

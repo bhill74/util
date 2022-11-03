@@ -8,10 +8,27 @@ from apiclient import http
 from apiclient import discovery
 import sys
 import io
+import gsheets
 
 DRIVE_URL_BASE = "drive.google.com/drive/u/0/"
 
-MIME_TYPES = {'folder': 'application/vnd.google-apps.folder'}
+MIME_TYPE_TXT = 'text/plain'
+MIME_TYPES = {'folder': 'application/vnd.google-apps.folder',
+              'sheet':  'application/vnd.google-apps.spreadsheet',
+              '.txt':   MIME_TYPE_TXT,
+              '.text':  MIME_TYPE_TXT,
+              '.csv':   'text/csv',
+              '.doc':   'applicaton/msword',
+              '.docx':  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              '.xls':   'application/vnd.ms-excel',
+              '.xlsx':  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              '.pdf':   'application/pdf',
+              '.gif':   'image/gif',
+              '.png':   'image/png',
+              '.jpg':   'image/jpg'}
+
+def getMimeExt(mimeType):
+    return list(MIME_TYPES.keys())[list(MIME_TYPES.values()).index(mimeType)]
 
 
 def idIs(gid):
@@ -74,6 +91,15 @@ def get_pattern(pattern):
     return re.compile('^{}$'.format(re.sub('\\*', '.+', pattern)))
 
 
+def _mkdir(path):
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+def transferMsg(gfile, name):
+    gfile = gfile if isinstance(gfile, GFile) else GFile(gfile['id'], gfile['name'])
+    print("{} --> {}/{}".format(gfile.getPaths()[0], os.getcwd(), name))
+
+
 class GDriveBase(gbase.GoogleAPI):
     def __init__(self, scope, application="drive",
                  credentials=None, service=None):
@@ -119,12 +145,14 @@ class GDriveBase(gbase.GoogleAPI):
 
         return results
 
+    def toFile(self, item):
+        return GFile(item['id'], item['name'],
+                     application=self.application,
+                     credentials=self.get_credentials(),
+                     service=self.get_service())
+
     def toFiles(self, results):
-        return [GFile(r['id'], r['name'],
-                      application=self.application,
-                      credentials=self.get_credentials(),
-                      service=self.get_service())
-                for r in results]
+        return [self.ToFile(r) for r in results]
 
     def toFolder(self, item):
         return GFolder(item['id'], name=item['name'],
@@ -134,6 +162,9 @@ class GDriveBase(gbase.GoogleAPI):
 
     def toFolders(self, results):
         return [self.toFolder(r) for r in results]
+
+    def uniqueName(self, path, unique=False):
+        return path if not unique else "{}:{}".format(path, self.gid)
 
 
 class GItem(GDriveBase):
@@ -182,6 +213,19 @@ class GItem(GDriveBase):
 
         return paths
 
+    def fullPath(self, filter=None, unique=False):
+        if ('/' not in filter):
+            return self.uniqueName(self.name, unique)
+
+        paths = self.getPaths()
+        if filter:
+            paths = [p for p in paths if filter in p]
+
+        if len(paths):
+            return self.uniqueName(paths[0], unique)
+
+        return ''
+
 
 class GFile(GItem):
     def __init__(self, gid, name,
@@ -191,28 +235,106 @@ class GFile(GItem):
                        credentials=credentials,
                        service=service)
 
-    def download(self, output=None):
+    def __rep__(self):
+        return "<GFile: {} ({})>".format(self.name, self.gid)
+
+    def __str__(self):
+        return self.__rep__()
+
+    def text(self):
+        result = self.get_files().export(fileId=self.gid,
+                                         mimeType=MIME_TYPE_TXT).execute()
+        return result.decode('utf-8')
+
+    def export(self, mimeType=None, info=None, output=None, quiet=False):
+        info = info if info else self.infoById(self.gid, ['name', 'mimeType'])
+        name = output if output else info['name']
+        if not mimeType:
+            fname, ext = os.path.splitext(name)
+            if ext in MIME_TYPES:
+                mimeType = MIME_TYPES[ext]
+            else:
+                mimeType = MIME_TYPE_TXT
+        else:
+            fname, ext = os.path.splitext(name)
+            if ext == '':
+                ext = getMimeExt(mimeType)
+                name = fname + ext
+
+        if MIME_TYPES['sheet'] == info['mimeType']:
+            sheet = self.toSheet()
+            try:
+                sheet.export(mimeType=mimeType, output=output, quiet=quiet)
+                return
+            except gsheets.IncompatibleFormat:
+                if mimeType == MIME_TYPES['.xls']:
+                    ext = '.xlsx'
+                elif mimeType == MIME_TYPES['.doc']:
+                    ext = '.docx'
+
+                mimeType = MIME_TYPES[ext] if ext in MIME_TYPES else MIME_TYPES['.csv']
+                name = "{}{}".format(fname, ext)
+
+        if not quiet:
+            transferMsg(self, name)
+
+        result = self.get_files().export(fileId=self.gid,
+                                         mimeType=mimeType).execute()
+        fd = open(name, 'wb')
+        fd.write(result)
+        fd.close()
+
+        if not quiet:
+            print('  Export Complete')
+
+    def download(self, mimeType=None, output=None, quiet=False):
+        info = self.infoById(self.gid, ['name', 'mimeType'])
+        if 'google-apps' in info['mimeType']:
+            self.export(output=output, quiet=quiet, mimeType=mimeType)
+            return
+
         request = self.get_files().get_media(fileId=self.gid)
-        name = output if output else self.infoBy(self.gid, ['name'])
+        name = output if output else info['name']
+
+        if not quiet:
+            transferMsg(self, name)
+
         fd = open(name, 'wb')
         media_request = http.MediaIoBaseDownload(fd, request)
         while True:
             try:
                 progress, done = media_request.next_chunk()
             except errors.HttpError as error:
-                print('An error occurred: %s' % error)
+                if not quiet:
+                    print('An error occurred: %s' % error)
                 return
             if progress:
-                print('Download Progress: %d%%'
-                      % int(progress.progress() * 100))
+                if not quiet:
+                    print('  Download Progress: %d%%'
+                          % int(progress.progress() * 100))
             if done:
-                print('Download Complete')
+                if not quiet:
+                    print('  Download Complete')
                 return
 
     def getDownloadUrl(self):
         links = self.infoById(self.gid, ['webContentLink'])
         if 'webContentLink' in links:
             return links['webContentLink']
+
+        return None
+
+    def getViewUrl(self):
+        links = self.infoById(self.gid, ['webViewLink'])
+        if 'webViewLink' in links:
+            return links['webViewLink']
+
+        return None
+
+    def getMimeType(self):
+        links = self.infoById(self.gid, ['mimeType'])
+        if 'mimeType' in links:
+            return links['mimeType']
 
         return None
 
@@ -242,7 +364,7 @@ class GFile(GItem):
 
     def append(self, content):
         data = self.get_files().export(fileId=self.gid,
-                                       mimeType='text/plain').execute()
+                                       mimeType=MIME_TYPE_TXT).execute()
         newLine = bytearray("\n".encode())
 
         if 'stream' in content:
@@ -260,8 +382,9 @@ class GFile(GItem):
     def getMetaData(self):
         return self.infoById(self.gid)
 
-    def __str__(self):
-        return "GFile: {} ({})".format(self.name, self.gid)
+    def toSheet(self):
+        return gsheets.GSpreadsheet(self.gid, self.name,
+                                    application=self.application)
 
 
 class GItem(GDriveBase):
@@ -307,6 +430,19 @@ class GItem(GDriveBase):
 
         return paths
 
+    def fullPath(self, filter=None, unique=False):
+        if ('/' not in filter):
+            return self.uniqueName(self.name, unique)
+
+        paths = self.getPaths()
+        if filter:
+            paths = [p for p in paths if filter in p]
+
+        if len(paths):
+            return self.uniqueName(paths[0], unique)
+
+        return ''
+
 
 class GFolder(GItem):
     def __init__(self, gid, name='',
@@ -315,6 +451,26 @@ class GFolder(GItem):
                        application=application,
                        credentials=credentials,
                        service=service)
+
+    def download(self, output=None, quiet=False):
+        cwd = os.getcwd()
+        if output:
+            _mkdir(output)
+            os.chdir(output)
+
+        _mkdir(self.name)
+        os.chdir(self.name)
+
+        for f in self.getFolders():
+            f.download(quiet=quiet)
+
+        for f in self.getFiles():
+            f.download(quiet=quiet)
+
+        os.chdir('..')
+
+        if output:
+            os.chdir(cwd)
 
     def search(self, param={}):
         base_q = "'{}' in parents".format(self.gid)
@@ -361,7 +517,16 @@ class GFolder(GItem):
 
     def createFile(self, name, content):
         mimeType = content['mimeType'] if 'mimeType' in content \
-                else 'plain/txt'
+                else None
+
+        if not mimeType:
+            fname, ext = os.path.splitext(name)
+            ext = ext.lower()
+            if ext in MIME_TYPES:
+                mimeType = MIME_TYPES[ext]
+            else:
+                mimeType = MIME_TYPE_TXT
+
         body = {'name': name, 'parents': [self.gid], 'mimeType': mimeType}
 
         if 'file' in content:
@@ -430,6 +595,25 @@ class GDrive(GDriveBase):
         GDriveBase.__init__(self, ".metadata.readonly",
                             application=application)
 
+    def byId(self, fileId, param={}):
+        service = self.get_service()
+        param = resolveQ(param)
+
+        if 'fields' not in param:
+            param['fields'] = 'id, name'
+        else:
+            f = param['fields']
+            if isinstance(f, list):
+                f = ", ".join(f)
+
+            param['fields'] = f
+
+        param['fileId'] = fileId
+
+        results = []
+        response = service.files().get(fileId=fileId).execute()
+        return response
+
     def search(self, param={}):
         service = self.get_service()
         param = resolveQ(param)
@@ -449,7 +633,6 @@ class GDrive(GDriveBase):
         results = []
         page_token = None
         while True:
-            #print(param)
             response = service.files().list(**param).execute()
             page_token = response.get('nextPageToken', None)
             results.extend(response.get('files', []))
@@ -467,8 +650,11 @@ class GDrive(GDriveBase):
         return self.toFiles(self.activeSearch(isNotFolder()))
 
     def getFileById(self, gid):
-        terms = [isNotFolder(), idIs(gid)]
-        return self.toFiles(self.activeSearch(terms))
+        result = GDrive.byId(self, gid, {})
+        if result and 'kind' in result and result['kind'] == 'drive#file':
+            return self.toFile(result)
+
+        return None
 
     def getFilesByName(self, name):
         terms = [isNotFolder(), nameIs(name)]

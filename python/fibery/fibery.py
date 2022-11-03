@@ -591,34 +591,40 @@ class Database(Object):
         if len(select) == 0:
             fields = self.fields()
         else:
-            fields = [self.toField({'fibery/name': f}) for f in select]
+            fields = select
 
         query['q/select'] = []
         for f in fields:
-            if f.isPrimitive():
-                query['q/select'].append(f.name())
-            else:
-                secrets = []
-                names = []
-                sub_entity = Database({'fibery/name': f.type()})
-                for ff in sub_entity.fields():
-                    if ff.name().endswith('/secret'):
-                        secrets.append(ff.name())
-                    elif ff.name().endswith('/name'):
-                        names.append(ff.name())
-                    elif ff.name().endswith('/document-secret'):
-                        names.append(ff.name())
-                        secrets.append(ff.name())
+            if isinstance(f, str):
+                f = self.toField({'fibery/name': f})
 
-                if len(secrets):
-                    names = secrets
-                elif len(names) == 0:
-                    names.append('fibery/id')
-
-                if f.isCollection():
-                    query['q/select'].append({f.name(): {'q/select': names, 'q/limit': 'q/no-limit'}})
+            if isinstance(f, Field):
+                if f.isPrimitive():
+                    query['q/select'].append(f.name())
                 else:
-                    query['q/select'].append({f.name(): names})
+                    secrets = []
+                    names = []
+                    sub_entity = Database({'fibery/name': f.type()})
+                    for ff in sub_entity.fields():
+                        if ff.name().endswith('/secret'):
+                            secrets.append(ff.name())
+                        elif ff.name().endswith('/name'):
+                            names.append(ff.name())
+                        elif ff.name().endswith('/document-secret'):
+                            names.append(ff.name())
+                            secrets.append(ff.name())
+
+                    if len(secrets):
+                        names = secrets
+                    elif len(names) == 0:
+                        names.append('fibery/id')
+
+                    if f.isCollection():
+                        query['q/select'].append({f.name(): {'q/select': names, 'q/limit': 'q/no-limit'}})
+                    else:
+                        query['q/select'].append({f.name(): names})
+            else:
+                query['q/select'].append(f)
 
         query['q/limit'] = limit if limit else 'q/no-limit'
         return Base.query(self, 'fibery.entity/query', query=query, params=params)
@@ -634,6 +640,13 @@ class Database(Object):
         params={'$pid': str(pid)}
         r = self.query(select=select, query=query, params=params, limit=1)
         return r[0] if len(r) else None 
+
+    def query_by_pids(self, pids, select=[]):
+        query={'q/where': ['q/or', ['=', ['fibery/public-id'], '$pid1'], 
+                                    ['=', ['fibery/public-id'], '$pid2']]}
+        params={'$pid1': str(pids[0]), '$pid2': str(pids[1])}
+        r = self.query(select=select, query=query, params=params, limit=3)
+        return r
 
     def query_by_field(self, value, field, select=[], limit=None, exact=False):
         query={'q/where': ['=' if exact else 'q/contains', [field], '$value']}
@@ -873,7 +886,7 @@ class CommonEntity(Entity):
         super().__init__(b, database, domain, token)
 
     def link(self):
-        return "{}/{}/{}".format(self._url(self._domain()), self.db().database_name.replace(' ', '_'), self.id())
+        return "{}/{}/{}".format(self._url(self._domain()), self.db().database_name.replace(' ', '_'), CommonEntity.id(self))
 
     def title(self):
         return self.name()
@@ -893,6 +906,22 @@ class CommonEntity(Entity):
         return self.db().add('Files/Files', self.fid, file_ids)
 
 
+def addSecret(secrets, mapping, key, secret, fid, pid):
+    secrets.append(secret)
+    if secret not in mapping:
+        mapping[key] = {}
+
+    mapping[secret] = (fid, pid, key)
+
+
+def _terms_inside(terms, line):
+    for t in terms:
+        if t not in line:
+            return False
+
+    return True
+
+
 class CommonDatabase(Database):
     def __init__(self, item, name, domain=None, token=None):
         fid = Base.get_schema_by_name(self, name, domain=domain, token=token)
@@ -900,6 +929,74 @@ class CommonDatabase(Database):
 
     def unique_fields(self):
         return super().unique_fields() + ['fibery/public-id']
+
+    def search(self, terms):
+        if isinstance(terms, str):
+            terms = [terms]
+
+        text_type = 'fibery/text'
+        fid_field = 'fibery/id'
+        pid_field = 'fibery/public-id'
+
+        results = {}
+        for i in range(len(terms)):
+            params = {'$value{}'.format(i): terms[i]}
+
+        fields = self.fields()
+        for t in [f for f in fields if f.type() == text_type]:
+            name = t.name()
+
+            match=[] 
+            for i in range(len(terms)):
+                match.append(['q/contains', [name], '$value{}'.format(i)])
+
+            if len(terms) == 1:
+                query={'q/where': match[0]}
+            else:
+                query={'q/where': ['q/and'] + match}
+
+            for r in Database.query(self, select=[fid_field, pid_field, name], query=query, params=params):
+                pid = r[pid_field]
+                if pid in results:
+                    results[pid][name] = r[name]
+                else:
+                    results[pid] = r
+
+        doc_fields = [f.name() for f in fields if f.type() in ['Collaboration~Documents/Document', 'comments/comment']]
+
+        secrets = []
+        smap = {}
+        n_items = 0
+        for i in self.query(select=[fid_field, pid_field] + doc_fields):
+            fid = i[fid_field]
+            pid = i[pid_field]
+
+            n_items = n_items + 1
+            for s in i['comments/comments']:
+                addSecret(secrets, smap, 'comment/comments', s['comment/document-secret'], fid, pid)
+
+            for k in i.keys():
+                if isinstance(i[k], dict) and 'Collaboration~Documents/secret' in i[k]:
+                    addSecret(secrets, smap, k, i[k]['Collaboration~Documents/secret'], fid, pid)
+
+        docs = Documents().getContentBySecrets(secrets)
+        filtered = [d['secret'] for d in docs if _terms_inside(terms, d['content'].lower())]
+    
+        for f in filtered:
+            fid = smap[f][0]
+            pid = smap[f][1]
+            key = smap[f][2]
+
+            c = [r['content'] for r in docs if r['secret'] == f]
+            c = [l for l in c[0].split("\n") if _terms_inside(terms, l.lower())]
+            if pid not in results:
+                results[pid] = {pid_field: pid, fid_field: fid, key: c}
+            elif key not in results[pid]:
+                results[pid][key] = c
+            else:
+                results[pid][key] = results[pid][key] + c
+
+        return results
 
 
 def Search(criteria, domain=None, token=None):

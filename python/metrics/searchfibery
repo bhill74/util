@@ -58,26 +58,12 @@ if not sources:
     sources = metrics_fibery.getDatabaseNames()
 
 terms = [t.lower() for t in terms]
-#term_patterns = [re.compile('({})'.format(t), re.IGNORECASE) for t in terms]
 term_patterns = [re.compile(t, re.IGNORECASE) for t in terms]
-
-
-def terms_inside(terms, line):
-    for t in terms:
-        if t in line:
-            return True
-
-    return False
 
 
 def terms_highlight(terms, line):
     for t in terms:
         line = re.sub(t, (Fore.RED + '\g<0>' + Style.RESET_ALL), line)
-        for m in t.finditer(line):
-            s = m.span()
-            ns = Fore.RED + m.group() + Style.RESET_ALL
-            #line = line[:s[0]] + ns + line[s[1]:]
-            #line = 
 
     return line
 
@@ -87,32 +73,15 @@ for s in sources:
     if not s:
         continue
 
-    print("Searching: {}".format(Fore.GREEN + s))
-    secrets = []
-    smap = {}
-    n_items = 0
-    for i in db.query():
-        n_items = n_items + 1
-        for s in i['comments/comments']:
-            secrets.append(s['comment/document-secret'])
-            smap[secrets[-1]] = i['fibery/id']
+    for pid, r in db.search(terms).items():
+        item = db.byFiberyId(r['fibery/id'])
+        print("{}: {} [{}]".format(Fore.RED + pid + Style.RESET_ALL, Fore.GREEN + item.name() + Style.RESET_ALL, Fore.CYAN + item.link() + Style.RESET_ALL))
 
-    print(" Number of items: {}".format(Fore.GREEN + str(n_items)))
+        for k in r.keys():
+            if not isinstance(r[k], list):
+                continue
 
-    docs = metrics_fibery.Documents().getContentBySecrets(secrets)
-    print(" Number of comments: {}".format(Fore.GREEN + str(len(docs))))
-
-    filtered = [d['secret'] for d in docs if terms_inside(terms, d['content'].lower())]
-
-    used = {}
-    for f in filtered:
-        item = db.byFiberyId(smap[f])
-        pid = item.id()
-        if pid not in used:
-            print("{}: {} [{}]".format(Fore.RED + pid, Fore.GREEN + item.name(), Fore.CYAN + item.link()))
-            used[pid] = True
-
-        c = [r['content'] for r in docs if r['secret'] == f]
-        c = [l for l in c[0].split("\n") if terms_inside(terms, l.lower())]
-        c = [terms_highlight(term_patterns, l) for l in c]
-        print("   " + "\n   ".join(c))
+            c = [terms_highlight(term_patterns, l) for l in r[k]]
+            name = k.split('/')[1].replace('-', ' ').title()
+            indent = "    {}: ".format(Fore.YELLOW + name + Style.RESET_ALL)
+            print(indent + ("\n" + indent).join(c))

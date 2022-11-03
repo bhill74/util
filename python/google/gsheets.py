@@ -6,6 +6,7 @@ from apiclient import discovery
 import pkg_resources
 import locale
 import time
+import gdrive
 
 SHEET_URL_BASE = "docs.google.com/spreadsheets/d/"
 
@@ -66,6 +67,11 @@ class GItem(GSheetBase):
                             service=service,
                             client_file=client_file,
                             credential_dir=credential_dir)
+
+
+class IncompatibleFormat(Exception):
+    def __init__(self, msg):
+        Exception.__init__(self, msg)
 
 
 class GSpreadsheet(GItem):
@@ -155,7 +161,35 @@ class GSpreadsheet(GItem):
 
         return result['values'] if 'values' in result else []
 
+    def export(self, mimeType=None, output=None, quiet=False):
+        output = output if output else self.name
+        fname, ext = os.path.splitext(output)
+        if mimeType == 'text/csv':
+            info = self.get_spreadsheets().get(spreadsheetId=self.gid).execute()
+            multiple = True if len(info['sheets']) > 1 else False
+            for sheet in info['sheets']:
+                title = sheet['properties']['title']
+                cells = self.retrieve(title)
+                csv_name = "{}{}{}".format(fname, "_{}".format(title) if multiple else "", ext)
+
+                if not quiet:
+                    gdrive.transferMsg(self.toFile(), csv_name)
+
+                fd = open(csv_name, 'w')
+                for row in cells:
+                    fd.write("{}\n".format(",".join(row)))
+                fd.close()
+        else:
+            raise IncompatibleFormat("Cannot convert spreadsheet to {}".format(mimeType))
+
+        if not quiet:
+            print('  Export Complete')
+
     def open(self):
         gbase.GoogleAPI.open(
                 'https://{}/%s/edit#gid=0'.format(SHEET_URL_BASE) %
                 self.gid)
+
+    def toFile(self):
+        return gdrive.GFile(self.gid, self.name,
+                            application=self.application)
