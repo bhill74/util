@@ -148,6 +148,7 @@ class Base:
     def show_prompt(self):
         default = ",".join(self._default) if self._default else None
         self.write("{}{}: ".format(self._prompt, " ({})".format(default) if default else ""))
+        self._out.flush()
 
     def preamble(self):
         return
@@ -343,11 +344,11 @@ class SelectionBase(ChoiceBase):
                             index+1, dec,
                             fmt['bracket'], fmt['reset'])
                     #op = f'{op:>{osize + add_len}}'
-                    op = '{:>{osize + add_len}}'.format(op)
+                    op = f'{op:>{osize + add_len}}'
                     if index < n:
                         m = "{} {}".format(op, c[index])
                         #line.append(f'{m:<{slot + add_len}}')
-                        line.append('{:<{slot + add_len}}'.format(m))
+                        line.append(f'{m:<{slot + add_len}}')
                     else:
                         line.append(" ")
 

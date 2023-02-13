@@ -5,7 +5,15 @@ import sys
 import glob
 import re
 from colorama import Fore, Back, Style
+import argparse
 
+my_parser = argparse.ArgumentParser(description = "Creates a summary report for the differences in tests between two runs.")
+my_parser.add_argument("-step", dest="step", choices=['2','3'], default=2, help="The tag for filtering 2/3 step results")
+my_parser.add_argument("-src", dest="src", type=str, default=None, help="The new test result directory")
+my_parser.add_argument("-ref", dest="ref", type=str, default=None, help="The reference test result directory")
+my_parser.add_argument("-set", dest="set", choices=['Beacon-2k1', 'Beacon-SV', 'Beacon-VHDL2008', 'Beacon-MX'], help="The set of tests from Interra")
+
+args = my_parser.parse_args()
 
 def read_score(filename, scores):
     with open(filename) as file:
@@ -57,23 +65,23 @@ def examine(path, result, log):
 
                 break
 
-def get_results(path):
+def get_results(path, step=None):
     cwd = os.getcwd()
     os.chdir(path)
 
     scores = {}
-    for item in glob.glob("examples/noida_report.[mn]*.csv"):
+    for item in glob.glob("example*/noida_report.[mn]*.csv"):
         read_score(item, scores)
 
     by_result = {}
     results = {}
     counts = {}
 
+    # For VHDL2008 and MX
     for result in glob.glob("report/[0-9]*.csv"):
         with open(result) as input:
             for line in input:
                 path, result, expect, compare, *_ = l = [r.strip() for r in line.split(',')]
-
                 if 'INT_TEST' in os.environ:
                     if os.environ['INT_TEST'] not in path:
                         continue
@@ -81,7 +89,7 @@ def get_results(path):
                 negative = True if 'SHOULD_FAIL' in expect else False
                 diag = None
 
-                bug_path = os.path.join(path, 'bug') 
+                bug_path = os.path.join(path, 'bug')
                 if os.path.exists(bug_path):
                     with open(bug_path) as file:
                         diag = file.read().strip()
@@ -97,7 +105,57 @@ def get_results(path):
                         diag = examine(path, result, 'dsim_elab.log')
 
                 my_score = scores[path] if path in scores else None
-   
+                key = result
+                if negative:
+                    if 'SAME_OUTPUT' in compare:
+                        key = "successful negative: {}".format(result)
+                    elif 'MISSING_GOLDEN' in compare:
+                        key = "no golden negative: {}".format(result)
+                    else:
+                        key = "unsuccessful negative: {}".format(result)
+
+                if key not in by_result:
+                    by_result[key] = []
+                    results[key] = 0
+
+                by_result[key].append({'test': path, 'result': result, 'negative': negative, 'diag': diag, 'score': my_score})
+                results[key] += 1 
+
+                if diag:
+                    if diag not in counts:
+                        counts[diag] = 0
+                    counts[diag] += 1
+
+    # 2k1 and SV store results differently.
+    tag = 'dsim_{}_step'.format(step)
+    for result in glob.glob("report.{}/report.dsim.*".format(tag)):
+        with open(result) as input:
+            for line in input:
+                path, result, expect, compare, *_ = l = [r.strip() for r in line.split(',')]
+                if 'INT_TEST' in os.environ:
+                    if os.environ['INT_TEST'] not in path:
+                        continue
+
+                path = os.path.dirname(path)
+                negative = True if 'SHOULD_FAIL' in expect else False
+                diag = None
+
+                bug_path = os.path.join(path, 'bug')
+                if os.path.exists(bug_path):
+                    with open(bug_path) as file:
+                        diag = file.read().strip()
+
+                else:
+                    if negative:
+                        diag = "negative test"
+
+                    elif 'FAILED_COMPILATION' in result:
+                        diag = examine(path, result, '{}.compilation.log'.format(tag))
+        
+                    elif 'FAILED_ELABORATION' in result:
+                        diag = examine(path, result, '{}.elab.log'.format(tag))
+
+                my_score = scores[path] if path in scores else None
                 key = result
                 if negative:
                     if 'SAME_OUTPUT' in compare:
@@ -121,8 +179,7 @@ def get_results(path):
 
     return by_result, results, counts
 
-by_resultA, results, counts = get_results(sys.argv[1])
-
+by_resultA, results, counts = get_results(os.path.join(args.src, args.set), step=args.step)
 
 def format_score(result):
     return 'score {}'.format(result['score']) if 'score' in result else 'no score'
@@ -137,14 +194,20 @@ def format_result(result):
     if 'FAILED' in result['result'] or 'DIFF' in result['result']:
         return Fore.RED + result['result'] + Style.RESET_ALL
 
+    if 'ABORTED' in result['result'] or 'DIFF' in result['result']:
+        return Fore.LIGHTRED_EX + result['result'] + Style.RESET_ALL
+
+    if 'MISSING' in result['result']:
+        return Fore.YELLOW + result['result'] + Style.RESET_ALL
+
     if 'TIME_OUT' in result['result']:
         return Fore.BLUE + result['result'] + Style.RESET_ALL
 
     return result['result']
 
 
-if len(sys.argv) > 2:
-    by_resultB, *_ = get_results(sys.argv[2])
+if args.ref:
+    by_resultB, *_ = get_results(os.path.join(args.ref, args.set), step=args.step)
 
     tests = {}
     for key in by_resultA.keys():
@@ -183,7 +246,7 @@ if len(sys.argv) > 2:
         r = i[0];
         o = i[1];
         if not o:
-            print("{}: {} ({}) ({}) [previously not known]")
+            print("{}: {} ({}) ({}) [previously not known]".format(n, format_result(r), r['diag'], format_score(r)))
         else:
             print("{}: {} ({}) ({}) --> {} ({})".format(n, format_result(o), o['diag'], format_score(o), format_result(r), r['diag']))
 

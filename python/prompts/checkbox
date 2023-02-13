@@ -3,8 +3,14 @@
 # Used to create an interactive checkbox prompt
 
 import argparse
-import prompt
 import sys
+import os
+
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "prompts"))
+import prompt
+
 
 if (__name__ == "__main__"):
     # Create the parser
@@ -23,6 +29,6 @@ if (__name__ == "__main__"):
     result = prompt.CheckboxPrompt(out=sys.stderr,
                                    prompt=args.prompt,
                                    title=args.title,
-                                   default=args.default.split(args.delim),
+                                   default=args.default.split(args.delim) if args.default else None,
                                    choices=args.choices.split(args.delim)).get()
     print(",".join(result) if result else "")
