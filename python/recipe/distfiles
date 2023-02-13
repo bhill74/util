@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/recipes
+install_dir $HOME/lib/recipes '*.py'
+
+initialize $HOME/util/recipes
+install_other $HOME/util/recipes

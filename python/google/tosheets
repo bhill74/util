@@ -7,8 +7,8 @@ import os
 try:
     opts, other = \
         getopt.getopt(sys.argv[1:],
-                "hvoc:i:u:",
-                ("help", "version", "open", "cell=", "input=", "update="))
+                "hvoc:i:u:d:q:k",
+                ("help", "version", "open", "cell=", "input=", "delimiter=", "quote=", "keep", "sheet", "spreadsheet", "update="))
 except getopt.GetoptError as err:
     print(str(err))
     sys.exit(2)
@@ -24,11 +24,14 @@ def usage():
     print("   -h, --help    Display this help information")
     print("   -v, --version Display the version")
     print("   -i, --input   Specify a CSV file instead of stdin")
+    print("   -d, --delimiter Specify a delimiter")
+    print("   -q, --quote   Specify the quote character")
     print("   -c, --cell    The first (top-left) cell to append")
     print("   -u, --update  Update the cells instead of appending")
     print("   -k, --keep    Keep fields as they are without conversion (int or float)")
     print("   -s, --sheet   Use this sheet, otherwise first visible sheet is used")
     print("   -o, --open    Open a browser with the newly created sheet")
+    print("   -S, --spreadsheet The ID of the spreadsheet to use")
     print("Report bugs to: brian.hill@metrics.ca\n")
 
 

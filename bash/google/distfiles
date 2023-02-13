@@ -9,4 +9,5 @@ install_file $HOME/lib/google include.sh
 initialize $HOME/util/google
 install_file $HOME/util/google gtee
 install_file $HOME/util/google todoc
+install_file $HOME/util/google completions.sh
 install_other $HOME/util/google

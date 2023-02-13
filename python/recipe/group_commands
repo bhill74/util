@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+sys.bytecodebase = None
+
+import apiclient
+print(os.path.abspath(apiclient.__file__))
+
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "recipes"))
+import recipes
+
+res = recipes.Recipe()
+res.absorb(base=recipes.GroupCommand)
+res.activate()

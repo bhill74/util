@@ -1,0 +1,28 @@
+#!/usr/bin/python3
+#
+# Used to create an interactive checkbox prompt
+
+import argparse
+import prompt
+import sys
+
+if (__name__ == "__main__"):
+    # Create the parser
+    my_parser = argparse.ArgumentParser(description = "Creates an interactive checkbox prompt for the user.")
+
+    # Add the arguments
+    my_parser.add_argument("-prompt", dest="prompt", type=str, default=None, help="The prompt to give")
+    my_parser.add_argument("-title", dest="title", type=str, default=None, help="The title to display")
+    my_parser.add_argument("-default", dest="default", type=str, default=None, help="The default value")
+    my_parser.add_argument("-choices", dest="choices", type=str, default=None, help="The choices to offer")
+    my_parser.add_argument("-delim", dest="delim", type=str, default=",", help="The delimiter to break the choices and defaults")
+
+    # Execute the parse_args() method
+    args = my_parser.parse_args()
+
+    result = prompt.CheckboxPrompt(out=sys.stderr,
+                                   prompt=args.prompt,
+                                   title=args.title,
+                                   default=args.default.split(args.delim),
+                                   choices=args.choices.split(args.delim)).get()
+    print(",".join(result) if result else "")

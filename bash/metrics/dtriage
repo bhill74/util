@@ -1,0 +1,35 @@
+#!/bin/bash
+
+b=$(cd $(dirname $BASH_SOURCE) && pwd)
+d=interraVHDL2008
+s=Beacon-VHDL2008
+if [ ! -e "$d" ]
+then
+    git clone --depth 1 --no-checkout git@gitlab.metrics.ca:product/dsim-interra.git --branch DEV $d 
+    pushd $d
+    git sparse-checkout set $s lib 
+    git checkout DEV
+    git config pull.rebase false
+else
+    pushd $d
+fi
+
+git pull
+
+module load mux-farm
+module load dsim-regress
+
+cd $s 
+base=$PWD
+
+ref=$(ls -td report/full.REPORT.csv 2>/dev/null | head -1)
+dsim=$(which dsim)
+if [ -z "$ref" ] || [ $dsim -nt $ref ]
+then
+    cd scripts
+    ./regress.py --remote
+fi
+
+ref=$(ls -td /scratch/project/dsim-interra/release/*/dsim-daily/$s | head -1)
+
+interra_report "$base" "$ref"

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/prompts
+install_dir $HOME/lib/prompts '*.py'
+
+initialize $HOME/util/prompts
+install_other $HOME/util/prompts

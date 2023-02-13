@@ -126,8 +126,11 @@ class GDriveBase(gbase.GoogleAPI):
         return self.get_service().files()
 
     def infoById(self, gid, fields=[]):
-        return self.get_files().get(fileId=gid,
-                                    fields=",".join(fields)).execute()
+        try:
+            return self.get_files().get(fileId=gid,
+                                        fields=",".join(fields)).execute()
+        except:
+            return None
 
     def toItems(self, items):
         results = []
@@ -152,7 +155,7 @@ class GDriveBase(gbase.GoogleAPI):
                      service=self.get_service())
 
     def toFiles(self, results):
-        return [self.ToFile(r) for r in results]
+        return [self.toFile(r) for r in results]
 
     def toFolder(self, item):
         return GFolder(item['id'], name=item['name'],

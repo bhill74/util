@@ -3,17 +3,21 @@
 directory=${PWD}
 steps=2,2,2
 markdown=0
+units=k
 
-while getopts "d:s:m" opt; do 
+while getopts "d:s:mu:" opt; do 
     case $opt in
         d)
-            directoy=$OPTARG
+            directory=$(cd $OPTARG && pwd)
             ;;
         s)
             steps=$OPTARG
             ;;
         m)
             markdown=1
+            ;;
+        u)      
+            units=$OPTARG
             ;;
         *)
             ;;
@@ -56,7 +60,7 @@ function report
 num=$(echo $steps | cut -f1 -d,)
 levels=$(echo $steps | sed "s/^$num,*//")
 depth=$(echo $steps | tr -cd , | wc -c)
-nice -10 du -k --max-depth=$(($depth+1)) $directory > $tmp_file
+nice -10 du -${units} --max-depth=$(($depth+1)) $directory > $tmp_file
 
 count=$(echo $directory | tr -cd / | wc -c)
 base=$(($count+2))
@@ -66,10 +70,10 @@ then
     border="\n----|-----|---------"
 fi
 
-(echo -e "Size|Level|Directory${border}" & report $base "$num" "$levels") | \
+(echo -e "Size (in ${units})|Level|Directory${border}" & report $base "$num" "$levels") | \
     if [[ $markdown -eq 1 ]]
     then
-        cat -
+        cat - | perl -pe 's#(\d+)\|( +)(/)#"**$1**|" . (q[:white_spacer:] x length $2) . $3#e' 
     else
         column -t -s '|' 
     fi

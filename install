@@ -30,6 +30,18 @@ clear $HOMEWWW/js
 
 for dist in `find . -depth -name TMP -prune -o -name distfiles | grep -v TMP | perl sortpaths.pl`
 do
+    if [[ ! -z "$2" ]]
+    then
+        m=$(echo $dist | sed "s|/distfiles||")
+        if [[ " $2 " =~ " $m " ]]
+        then
+            echo "Selecting $dist"
+        else
+            echo "Skipping $m"
+            continue
+        fi
+    fi
+
     directory=`echo $dist | sed -e "s,/[^/]*$,,"`
     echo "Installing $directory"
     cd $directory

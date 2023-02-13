@@ -1,0 +1,5 @@
+#!/bin/bash
+
+ls -d /project/dsim/${USER}/dsim*/source/dsim | while read dir; do
+    echo $dir$(cd $dir;git_branch 1)
+done

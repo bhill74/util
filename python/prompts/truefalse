@@ -1,0 +1,24 @@
+#!/usr/bin/python3
+#
+# Used to create an interactive True/False prompt
+
+import argparse
+import prompt
+import sys
+
+if (__name__ == "__main__"):
+    # Create the parser
+    my_parser = argparse.ArgumentParser(description = "Creates an interactive True/False prompt for the user.")
+
+    # Add the arguments
+    my_parser.add_argument("-prompt", dest="prompt", type=str, default=None, help="The prompt to give")
+    my_parser.add_argument("-default", dest="default", type=str, default=None, help="The default value")
+
+
+    # Execute the parse_args() method
+    args = my_parser.parse_args()
+
+    result = prompt.TrueFalsePrompt(out=sys.stderr,
+                                    prompt=args.prompt,
+                                    default=args.default).get()
+    print(result if result else "")

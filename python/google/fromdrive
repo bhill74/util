@@ -31,6 +31,7 @@ def usage():
     print("  -l, --location     The location to access")
     print("  -t, --target       The target for the download")
     print("  -L, --ls           List the matching contents only")
+    print("  -m, --mimeType     Define the output mime-time")
     print("  -q, --quiet        Operate in quiet mode")
     print("  -o, --output       Send content to stdout")
     print("Report bugs to: brian.hill@metrics.ca\n")
@@ -109,7 +110,6 @@ tc = count([x.name for x in r])
 
 def showInfo(f, c):
     p = props.copy()
-    print("C", c)
     if c[f.name] > 1:
         p += ['id']
 

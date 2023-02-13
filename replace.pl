@@ -12,6 +12,8 @@ sub replace {
   s/getenv\(\s*\"$src\"\s*\)\s*\+\s*\"/\"$tgt/g;   
   # TCL
   s/\$::env\{$src\}/$tgt/g;
+  # Python
+  s/os\.getenv\(\'$src\'\)/\'$tgt\'/g;
 }
 
 replace( "HOME", $ENV{HOME} );

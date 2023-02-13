@@ -6,7 +6,10 @@ from apiclient import discovery
 import pkg_resources
 import locale
 import time
+
+# Local modules
 import gdrive
+
 
 SHEET_URL_BASE = "docs.google.com/spreadsheets/d/"
 
@@ -18,6 +21,75 @@ def canonicalizeId(gid):
         return match.groups()[0]
 
     return gid
+
+
+def cell_addr(cell):
+    if isinstance(cell, str):
+        return cell
+
+    if isinstance(cell, tuple) and len(cell) == 2:
+        return "{}{}".format(cell[0], cell[1])
+
+    print("not supported", cell)
+    return ""
+
+
+def cell_range(start, end=None, sheet=None):
+    addr = ""
+    if sheet:
+        addr = sheet + "!"
+
+    addr += cell_addr(start)
+    if end:
+        addr += ":" + cell_addr(end)
+
+    return addr
+
+
+def cell_decomp(cell):
+    if isinstance(cell, str):
+        c = re.compile(r'\d+').split(cell)[0]
+        r = int(cell[len(c):])
+        return c, r
+
+    if isinstance(cell, tuple):
+        return cell[0], int(cell[1])
+
+    return "", 0
+
+
+def shift_column(column, offset):
+    a = ord('A')
+    val = [ord(c)-a for c in column.upper()]
+    size = 26
+    last = size-1
+
+    r = offset
+    for i in range(len(val)-1, -1, -1):
+        val[i] += r
+        r = int(val[i]/size)
+        #print(" *V", val)
+        if val[i] > last:
+            val[i] %= last
+        elif val[i] < 0:
+            val[i] = ((size+val[i]) % size)
+            r -= 1
+        else:
+            r = 0
+
+        #print(" I", val, r)
+        if r == 0:
+            break
+
+    if r > 0:
+        val.prepend(r)
+    elif r == -1 and val[0] == last:
+        val = val[1:]
+    elif r != 0:
+        print("Offset too large")
+        return column
+
+    return "".join([chr(c+a) for c in val])
 
 
 class GSheetBase(gbase.GoogleAPI):
@@ -121,6 +193,39 @@ class GSpreadsheet(GItem):
             print(e)
 
         return None
+
+    def _batchUpdate(self, requests):
+        requests = requests if isinstance(requests, list) else [requests]
+        try:
+            self.get_spreadsheets().batchUpdate(
+                spreadsheetId=self.gid,
+                body={'requests': requests}).execute()
+            return True
+        except Exception as e:
+            print(e)
+
+        return False
+
+    def addSheet(self, sheetName, rows=None, columns=None, colour=None):
+        info = self.get_spreadsheets().get(spreadsheetId=self.gid).execute()
+        if info and 'sheets' in info:
+            sheets = [s for s in info['sheets'] if s['properties']['title'] == sheetName]
+            if len(sheets):
+                return False
+
+        # TODO: Update sheet if not a match to properies??
+        r = {'addSheet': {'properties': {'title': sheetName}}}
+        if rows or columns:
+            r['addSheet']['properties']['gridProperties'] = {}
+            if rows:
+                r['addSheet']['properties']['gridProperties']['rowCount'] = rows
+            if columns:
+                r['addSheet']['properties']['gridProperties']['columnCount'] = columns
+        if colour:
+            r['addSheet']['properties']['tabColor'] = \
+                {'red': (colour[0] + 0.0/255), 'green': (colour[1]+0.0)/255, 'blue': (colour[2]+0.0)/255}
+
+        return self._batchUpdate(r)
 
     def update(self, values, rangeName="A1"):
         try:

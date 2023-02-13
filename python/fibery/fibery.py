@@ -13,16 +13,26 @@ import subprocess
 import traceback
 import sys
 
+from pyparsing import nestedExpr
+
 sys.path.append("{}/lib/config".format(os.getenv('HOME')))
 from local_config import LocalConfigParser
 
 sys.path.append("{}/.local/lib/python3.7/site-packages".format(os.getenv('HOME')))
 import browsercookie
 
+# Standard Names
+_FIBERY_id = 'fibery/id' 
+_FIBERY_public_id = 'fibery/public-id' 
+
+# Standard Types
+_FIBERY_text_type = 'fibery/text' 
+
+
 class Config(LocalConfigParser):
     """
     Used to retrieve information for interfacing with the Fibery API
-    
+   {} 
     Arguments:
         [name = 'fibery.cfg'] -- The name of the configuration file to look for.
     """
@@ -130,6 +140,11 @@ def _get_name_and_id(info):
         name = _get_attr(info, 'name')
         fid = _get_attr(info, 'id')
         return name, fid
+    if isinstance(info, str):
+        if len(info) == 36:
+            return None, info
+        else:
+            return info, None
 
     return None, info
 
@@ -218,6 +233,7 @@ class Base:
 
         if self._debug():
             print("Headers:", headers)
+            print("DATA", data)
             if (isinstance(data, dict) or isinstance(data, list)) and len(data):
                 print("Data:\n", json.dumps(data, indent=4))
             if len(files):
@@ -384,7 +400,7 @@ class Base:
     def add(self, field, fid, items, domain=None, token=None):
         args = {'type': self.name(),
                 'field': field,
-                'entity': { 'fibery/id': fid },
+                'entity': { _FIBERY_id: fid },
                 'items': items}
 
         res = self.command('fibery.entity/add-collection-items', args, domain=domain, token=token)
@@ -451,7 +467,7 @@ class Base:
 
     def get_schema_by_id(self, fid, domain=None, token=None):
         schemas = self.get_schema(domain=domain, token=token)
-        schemas = [s for s in schemas if s['fibery/id'] == fid]
+        schemas = [s for s in schemas if s[_FIBERY_id] == fid]
         return schemas[0] if len(schemas) else None
 
     def get_schema_by_name(self, name, domain=None, token=None):
@@ -462,7 +478,7 @@ class Base:
 
 class Object(Base):
     """
-        The comon functionality of any Fibery object
+        The common functionality of any Fibery object
     """
     def __init__(self, fid, domain=None, token=None):
         super().__init__(domain, token)
@@ -473,10 +489,10 @@ class Object(Base):
         elif isinstance(fid, dict):
             self.info = fid
         
-        self.fid = self.info['fibery/id'] if self.info and 'fibery/id' in self.info else '-1'
+        self.fid = self.info[_FIBERY_id] if self.info and _FIBERY_id in self.info else '-1'
 
     def _attr(self, name):
-        return self.info[name] if name in self.info else None
+        return self.info[name] if self.info and name in self.info else None
 
     def _set_attr(self, name, value):
         if not self.info:
@@ -490,7 +506,7 @@ class Object(Base):
         return self.fid
 
     def id(self):
-        return self._attr('fibery/public-id')
+        return self._attr(_FIBERY_public_id)
 
     def __rep__(self):
         return "<{} '{}'>".format(self.obj_type(), self.name())
@@ -534,7 +550,7 @@ class Field(Object):
     def _get_info(self, fid):
         schema = self.get_schema_by_id(self.parent_fid)
         fields = schema['fibery/fields'] if schema else []
-        fields = [f for f in fields if f['fibery/id'] == fid]
+        fields = [f for f in fields if f[_FIBERY_id] == fid]
         return fields[0] if len(fields) else None
 
     def name(self):
@@ -559,10 +575,152 @@ class Field(Object):
     
     def isCollection(self):
         meta = self.meta()
-        if 'fibery/collection?' not in meta or not meta['fibery/collection?']:
+        if not meta or 'fibery/collection?' not in meta or not meta['fibery/collection?']:
             return False
 
         return True
+
+    def _get_db(self):
+        db = None
+        if hasattr(self, '_db') and self._db:
+            db = self._db
+        else:
+            db = self._db = Database({'fibery/name': self.type()})
+
+        return db
+
+    def texts(self):
+        db = self._get_db()
+        if db is None:
+            return [] 
+
+        names = []
+        for f in db.fields():
+            n = f.name()
+            if n == _FIBERY_public_id:
+                continue
+
+            if f.type() == _FIBERY_text_type:
+                names.append(n)
+        
+            elif f.type() == 'fiberty/uuid':
+                if n.endswith('/document-secret') or n.endswith('/secret'):
+                    names.append(n)
+
+        return names 
+    
+    def secrets(self):
+        db = self._get_db()
+        if db is None:
+            return [] 
+
+        names = []
+        for f in db.fields():
+            n = f.name()
+            if n.endswith('/document-secret'):
+                names.append(n)
+
+        return names
+
+    def select(self):
+        name = self.name()
+        if self.isPrimitive():
+            return name 
+
+        n = self.secrets()
+        if len(n) == 0:
+            n = self.texts()
+
+        if len(n) == 0:
+            n.append(_FIBERY_id)
+
+        if self.isCollection():
+            return {name: {'q/select': n, 'q/limit': 'q/no-limit'}}
+
+        return {name: n}
+
+    def _info(self):
+        db = self._get_db()
+        if db is None:
+            return [] 
+
+        select = [f for f in db.fields() if f.isPrimitive()]
+        return db.query(select=select)
+
+    def values(self):
+        return [v['enum/name'] for v in self._info()]
+
+_FIBERY_condition_ops = {
+    '==':   '=',
+    'in':   'q/contains',
+    'and':  'q/and',
+    'or':   'q/or',
+    '&&':   'q/and',
+    '||':   'q/or' }
+
+class Condition:
+    """
+        A representation of a Fibery condition
+    """
+    def __init__(self, cond_type, ops):
+        self.ops = (ops)
+        self.type = cond_type
+      
+    def _toStr(op):
+        if isinstance(op, str):
+            return op
+        elif isinstance(op, int):
+            return str(op)
+        elif isinstance(op, Condition):
+            return op.toStr()
+        elif isinstance(op, Field):
+            return op.name()
+        else:
+            return "<unknown>"
+
+    def toStr(self):
+        return "{} {} {}".format(Condition._toStr(self.ops[0]),
+                                 self.type, 
+                                 Condition._toStr(self.ops[1]))
+
+    def where(self, values):
+        query = [self.type]
+        for op in self.ops:
+            if isinstance(op, str):
+                key = "$value{}".format(len(values)+1)
+                values[key] = op
+                query.append(key)
+
+            elif isinstance(op, int):
+                key = "$value{}".format(len(values)+1)
+                values[key] = str(op) 
+                query.append(key)
+            
+            if isinstance(op, Field):
+                arg = [op.name()]
+                if not op.isPrimitive():
+                    texts = op.texts()
+                    if len(texts):
+                        arg.append(texts[0])
+                query.append(arg)
+
+            elif isinstance(op, Condition):
+                q, v = op.where(values)
+                query.append(q)
+
+        return query, values 
+
+    def __str__(self):
+        return self.__rep__()
+
+    def __rep__(self):
+        return "<Condition {}>".format(self.toStr())
+
+
+def EqCondition(Condition):
+    """
+        A representation of a Fibrary query Eq condition
+    """
 
 
 class Database(Object):
@@ -593,36 +751,15 @@ class Database(Object):
         else:
             fields = select
 
+        print("S", select, "Q", query, "P", params)
+
         query['q/select'] = []
         for f in fields:
             if isinstance(f, str):
                 f = self.toField({'fibery/name': f})
 
             if isinstance(f, Field):
-                if f.isPrimitive():
-                    query['q/select'].append(f.name())
-                else:
-                    secrets = []
-                    names = []
-                    sub_entity = Database({'fibery/name': f.type()})
-                    for ff in sub_entity.fields():
-                        if ff.name().endswith('/secret'):
-                            secrets.append(ff.name())
-                        elif ff.name().endswith('/name'):
-                            names.append(ff.name())
-                        elif ff.name().endswith('/document-secret'):
-                            names.append(ff.name())
-                            secrets.append(ff.name())
-
-                    if len(secrets):
-                        names = secrets
-                    elif len(names) == 0:
-                        names.append('fibery/id')
-
-                    if f.isCollection():
-                        query['q/select'].append({f.name(): {'q/select': names, 'q/limit': 'q/no-limit'}})
-                    else:
-                        query['q/select'].append({f.name(): names})
+                query['q/select'].append(f.select())
             else:
                 query['q/select'].append(f)
 
@@ -630,26 +767,31 @@ class Database(Object):
         return Base.query(self, 'fibery.entity/query', query=query, params=params)
 
     def query_by_fid(self, fid, select=[]):
-        query={'q/where': ['=', ['fibery/id'], '$fid']}
+        query={'q/where': ['=', [_FIBERY_id], '$fid']}
         params={'$fid': fid}
         r = self.query(select=select, query=query, params=params, limit=1)
         return r[0] if len(r) else None 
 
     def query_by_pid(self, pid, select=[]):
-        query={'q/where': ['=', ['fibery/public-id'], '$pid']}
+        query={'q/where': ['=', [_FIBERY_public_id], '$pid']}
         params={'$pid': str(pid)}
         r = self.query(select=select, query=query, params=params, limit=1)
         return r[0] if len(r) else None 
 
     def query_by_pids(self, pids, select=[]):
-        query={'q/where': ['q/or', ['=', ['fibery/public-id'], '$pid1'], 
-                                    ['=', ['fibery/public-id'], '$pid2']]}
+        query={'q/where': ['q/or', ['=', [_FIBERY_public_id], '$pid1'], 
+                                    ['=', [_FIBERY_public_id], '$pid2']]}
         params={'$pid1': str(pids[0]), '$pid2': str(pids[1])}
         r = self.query(select=select, query=query, params=params, limit=3)
         return r
 
     def query_by_field(self, value, field, select=[], limit=None, exact=False):
         query={'q/where': ['=' if exact else 'q/contains', [field], '$value']}
+        params={'$value': value}
+        return self.query(select=select, query=query, params=params, limit=limit)
+
+    def query_by_field_enum(self, value, field, select=[], limit=None, exact=False):
+        query={'q/where': ['=', [field, 'enum/name'], '$value']}
         params={'$value': value}
         return self.query(select=select, query=query, params=params, limit=limit)
 
@@ -674,19 +816,37 @@ class Database(Object):
         """
         return self.toItem(self.query_by_pid(fid))
 
+    def search_fields(self, f):
+        """
+        Used to retrieve the corresponding field entries. 
+        """
+        name, fid = _get_name_and_id(f)
+
+        schema = self.get_schema_by_name(self.database_name)
+        fields = schema['fibery/fields'] if schema else []
+        if name and fid:
+            fields = [f for f in fields if f['fibery/name'] == name and f[_FIBERY_id] == fid]
+        elif name:
+            fields = [f for f in fields if f['fibery/name'] == name]
+        else:
+            fields = [f for f in fields if f[_FIBERY_id] == fid]
+
+        return fields
+
+    def isField(self, f):
+        """
+        Used to determine if a given name is a field.
+        """
+        fields = self.search_fields({'fibery/name': f})
+        return True if len(fields) else False
+
     def toField(self, f):
         """
         Used to convert a field record into a field class.
         """
         name, fid = _get_name_and_id(f)
-
         if name:
-            schema = self.get_schema_by_name(self.database_name)
-            fields = schema['fibery/fields'] if schema else []
-            if not fid:
-                fields = [f for f in fields if f['fibery/name'] == name]
-            else:
-                fields = [f for f in fields if f['fibery/name'] == name and f['fibery/id'] == fid]
+            fields = self.search_fields(f)
 
             f = fields[0] if len(fields) else None
 
@@ -702,7 +862,41 @@ class Database(Object):
         return len(self._fields())
 
     def unique_fields(self):
-        return ['fibery/id']
+        return [_FIBERY_id]
+
+    def addCondition(self, ctype, ops):
+        ops = [self.toField(o) if self.isField(o) else o for o in ops]
+        return Condition(ctype, ops) 
+
+    def _parse(self, conds):
+        if isinstance(conds, str):
+            for op, val in _FIBERY_condition_ops.items():
+                if op == conds:
+                    return val
+
+                elif op in conds:
+                    ops = [o.strip() for o in conds.split(op)]
+                    return self.addCondition(val, ops)
+
+            raise Exception("Unrecognized term {}".format(conds))
+
+        elif not isinstance(conds, list):
+            return conds
+
+        if len(conds) == 1:
+            return self._parse(conds[0])
+
+        for i in range(len(conds)):
+            conds[i] = self._parse(conds[i])
+
+        if len(conds) == 3:
+            return self.addCondition(conds[1], [conds[0], conds[2]])
+
+        return conds
+                    
+    def parseCondition(self, condition):
+        c = nestedExpr('(', ')').parseString("({})".format(condition)).asList()
+        return self._parse(c)
 
 
 class Entity(Object):
@@ -762,8 +956,8 @@ class Users(Database):
         return Database.query_by_field(self, name, 'user/name', domain=domain, limit=limit)
 
     def users(self, select=[], query={}, params={}, limit=None):
-        if 'fibery/id' not in select:
-            select.append('fibery/id')
+        if _FIBERY_id not in select:
+            select.append(_FIBERY_id)
 
         users = self.query(select=select, query=query, params=params, limit=limit)
         return self.toItems(users) 
@@ -836,7 +1030,7 @@ class Files(Database):
         return self.toItems(Database.query_by_field(self, name, 'fibery/name', exact=True))
 
     def unique_fields(self):
-        return ['fibery/id', 'fibery/secret']
+        return [_FIBERY_id, 'fibery/secret']
 
     def files(self):
         return self.toItems(Database.query(self)) 
@@ -875,7 +1069,7 @@ class File(Entity):
 
         if result and 'fibery/secret' in result:
             self.info = result
-            self.fid = result['fibery/id']
+            self.fid = result[_FIBERY_id]
             return True
 
         return False
@@ -902,7 +1096,7 @@ class CommonEntity(Entity):
         if not isinstance(files, list):
             files = [files]
 
-        file_ids = [{'fibery/id': f.fid} for f in files]
+        file_ids = [{_FIBERY_id: f.fid} for f in files]
         return self.db().add('Files/Files', self.fid, file_ids)
 
 
@@ -928,22 +1122,20 @@ class CommonDatabase(Database):
         super().__init__(fid, item, domain, token)
 
     def unique_fields(self):
-        return super().unique_fields() + ['fibery/public-id']
+        return super().unique_fields() + [_FIBERY_public_id]
 
     def search(self, terms):
         if isinstance(terms, str):
             terms = [terms]
 
-        text_type = 'fibery/text'
-        fid_field = 'fibery/id'
-        pid_field = 'fibery/public-id'
+        text_type = _FIBERY_text_type
 
         results = {}
         for i in range(len(terms)):
             params = {'$value{}'.format(i): terms[i]}
 
         fields = self.fields()
-        for t in [f for f in fields if f.type() == text_type]:
+        for t in [f for f in fields if f.type() == _FIBERY_text_type]:
             name = t.name()
 
             match=[] 
@@ -955,8 +1147,8 @@ class CommonDatabase(Database):
             else:
                 query={'q/where': ['q/and'] + match}
 
-            for r in Database.query(self, select=[fid_field, pid_field, name], query=query, params=params):
-                pid = r[pid_field]
+            for r in Database.query(self, select=[_FIBERY_id, _FIBERY_public_id, name], query=query, params=params):
+                pid = r[_FIBERY_public_id]
                 if pid in results:
                     results[pid][name] = r[name]
                 else:
@@ -967,9 +1159,9 @@ class CommonDatabase(Database):
         secrets = []
         smap = {}
         n_items = 0
-        for i in self.query(select=[fid_field, pid_field] + doc_fields):
-            fid = i[fid_field]
-            pid = i[pid_field]
+        for i in self.query(select=[_FIBERY_id, _FIBERY_public_id] + doc_fields):
+            fid = i[_FIBERY_id]
+            pid = i[_FIBERY_public_id]
 
             n_items = n_items + 1
             for s in i['comments/comments']:
@@ -990,7 +1182,7 @@ class CommonDatabase(Database):
             c = [r['content'] for r in docs if r['secret'] == f]
             c = [l for l in c[0].split("\n") if _terms_inside(terms, l.lower())]
             if pid not in results:
-                results[pid] = {pid_field: pid, fid_field: fid, key: c}
+                results[pid] = {_FIBERY_public_id: pid, _FIBERY_id: fid, key: c}
             elif key not in results[pid]:
                 results[pid][key] = c
             else:

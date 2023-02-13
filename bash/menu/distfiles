@@ -3,6 +3,9 @@
 BASE="../../"
 source $BASE/functions
 
+initialize $HOME/lib/menu
+install_file $HOME/lib/menu include.sh
+
 initialize $HOME/util/menu
 install_file $HOME/util/menu settings.sh 
 install_other $HOME/util/menu

@@ -1,0 +1,205 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import glob
+import re
+from colorama import Fore, Back, Style
+
+
+def read_score(filename, scores):
+    with open(filename) as file:
+        for item in file:
+            path, result, expect, *_ = l = item.split(',')
+            if os.path.isfile(path):
+                path = os.path.dirname(path) 
+
+            if path not in scores:
+                scores[path] = 0
+
+            if 'PASS' in result and 'PASS' in expect:
+                scores[path] += 1
+            elif 'FAIL' in result and 'FAIL' in expect:
+                scores[path] += 1   
+
+
+def examine(path, result, log):
+    log_path = os.path.join(path, log)
+    if not os.path.exists(log_path):
+        return ''
+
+    fatal_pattern = re.compile('^=F:(.+)')
+    error_pattern = re.compile('^=E:\[(.*)\]')
+    file_pattern = re.compile('(\S+):(\d+):(\d+)\s+(.*)')
+    with open(log_path) as file:
+        diag = '(unknown)'
+        for item in file:
+            m = re.findall(fatal_pattern, item)
+            if m:
+                return "Fatal: {}".format(m[0])
+               
+            m = re.findall(error_pattern, item)
+            if m:
+                error = m[0]
+                descr = ""
+                for sub in file:
+                    m = re.findall(file_pattern, sub)
+                    if m:
+                        descr = m[0][3].strip()
+                        break
+
+                if error == "UnexpectedNode":
+                    return "Node: {}".format(descr)
+                elif error == "UnsupportedFeature":
+                    return "Feature: {}".format(descr)
+                else:
+                    return "Error: {}".format(error)
+
+                break
+
+def get_results(path):
+    cwd = os.getcwd()
+    os.chdir(path)
+
+    scores = {}
+    for item in glob.glob("examples/noida_report.[mn]*.csv"):
+        read_score(item, scores)
+
+    by_result = {}
+    results = {}
+    counts = {}
+
+    for result in glob.glob("report/[0-9]*.csv"):
+        with open(result) as input:
+            for line in input:
+                path, result, expect, compare, *_ = l = [r.strip() for r in line.split(',')]
+
+                if 'INT_TEST' in os.environ:
+                    if os.environ['INT_TEST'] not in path:
+                        continue
+
+                negative = True if 'SHOULD_FAIL' in expect else False
+                diag = None
+
+                bug_path = os.path.join(path, 'bug') 
+                if os.path.exists(bug_path):
+                    with open(bug_path) as file:
+                        diag = file.read().strip()
+
+                else:
+                    if negative:
+                        diag = "negative test"
+
+                    elif 'FAILED_COMPILATION' in result:
+                        diag = examine(path, result, 'dsim_analyze.log')
+        
+                    elif 'FAILED_ELABORATION' in result:
+                        diag = examine(path, result, 'dsim_elab.log')
+
+                my_score = scores[path] if path in scores else None
+   
+                key = result
+                if negative:
+                    if 'SAME_OUTPUT' in compare:
+                        key = "successful negative: {}".format(result)
+                    elif 'MISSING_GOLDEN' in compare:
+                        key = "no golden negative: {}".format(result)
+                    else:
+                        key = "unsuccessful negative: {}".format(result)
+
+                if key not in by_result:
+                    by_result[key] = []
+                    results[key] = 0
+
+                by_result[key].append({'test': path, 'result': result, 'negative': negative, 'diag': diag, 'score': my_score})
+                results[key] += 1 
+
+                if diag:
+                    if diag not in counts:
+                        counts[diag] = 0
+                    counts[diag] += 1
+
+    return by_result, results, counts
+
+by_resultA, results, counts = get_results(sys.argv[1])
+
+
+def format_score(result):
+    return 'score {}'.format(result['score']) if 'score' in result else 'no score'
+
+def format_result(result):
+    if 'result' not in result:
+        return ''
+
+    if 'PASSED' in result['result'] or 'SAME' in result['result']:
+        return Fore.GREEN + result['result'] + Style.RESET_ALL
+
+    if 'FAILED' in result['result'] or 'DIFF' in result['result']:
+        return Fore.RED + result['result'] + Style.RESET_ALL
+
+    if 'TIME_OUT' in result['result']:
+        return Fore.BLUE + result['result'] + Style.RESET_ALL
+
+    return result['result']
+
+
+if len(sys.argv) > 2:
+    by_resultB, *_ = get_results(sys.argv[2])
+
+    tests = {}
+    for key in by_resultA.keys():
+        for r in by_resultA[key]:
+            o = None
+            for k in by_resultB.keys():
+                for t in by_resultB[k]:
+                    if t['test'] == r['test']:
+                        o = t
+                        break
+           
+                if o:
+                    break;
+
+            if not o:
+                tests[r['test']] = (r,None)
+                break
+
+            if r['result'] == 'PASSED_SIMULATION' and o['result'] == 'PASSED_SIMULATION':
+                break
+
+            if key != k:
+                tests[r['test']] = (r,o)
+                break
+            elif r['result'] == o['result']:
+                if o['diag'] == '':
+                    break
+
+            for i in r.keys():
+                if i != 'score' and r[i] != o[i]:
+                    tests[r['test']] = (r,o)
+                    break
+
+    for n in sorted(tests.keys()):
+        i = tests[n]
+        r = i[0];
+        o = i[1];
+        if not o:
+            print("{}: {} ({}) ({}) [previously not known]")
+        else:
+            print("{}: {} ({}) ({}) --> {} ({})".format(n, format_result(o), o['diag'], format_score(o), format_result(r), r['diag']))
+
+else:
+    for r in sorted(results.keys()):
+        print(r)
+        print("-" * len(r))
+        for tr in sorted(by_resultA[r], key=lambda i: i['test'].lower()):
+           print("{}: {} ({}) ({})".format(tr['test'], tr['result'], tr['diag'] if tr['diag'] else '', format_score(tr))) 
+
+        print()
+
+    for d in sorted(counts.keys()):
+        print("{0:<40} {1}".format("({})".format(d), counts[d]))
+
+    print()
+    for r in sorted(results.keys()):
+        print("{0:<40} {1}".format("({})".format(r), results[r]))
+

@@ -1,0 +1,24 @@
+#!/bin/bash
+
+declare -A tests
+tests[tests]=''
+tests[vests]='clifton vests-master/vhdl-93/dsim/billowitch'
+tests[vh_tests]=''
+
+h=200
+w=24
+x=50
+y=100
+
+for r in "${!tests[@]}"
+do
+    names=(${tests[$r]})
+    cmd="cd ../../test/dsim/$r; pwd; module list; runtests --remote ${names[@]}; any_key"
+    xterm -geometry "${h}x${w}+${x}+${y}" -title "Using $r" -e "$cmd" &
+    x=$(($x+100))
+    y=$(($y+100))
+    sleep 0.5
+done
+
+base=$(cd $(dirname $BASH_SOURCE) && pwd)
+xterm -geometry "${h}x${w}+${x}+${y}" -title "Using VHDL2008" -e "module list; ${base}/dtriage; any_key"

@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import argparse
+from datetime import datetime
+
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "recipes"))
+import recipes
+
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "google"))
+import gsheets
+
+# Configuration
+sys.bytecodebase = None
+
+my_parser = argparse.ArgumentParser(description="Creates an interactive step-by-step menu of commands needed and updates a spreadsheet for all grouped commands")
+my_parser.add_argument("-colour", dest="colour", type=int, default=2, help="The highlight colour for the command prompts")
+my_parser.add_argument("-sheet_id", dest="sheet_id", type=str, default=None, help="The GoogleID for the spreadsheet to update")
+my_parser.add_argument("-sheet_name", dest="sheet_name", type=str, default="Sheet1", help="The name of the sheet to update in the spreadsheet")
+my_parser.add_argument("-start", dest="start", type=str, default="A1", help="The starting range to update")
+
+args = my_parser.parse_args()
+
+sheet_name = os.getenv("BUILD_SHEET_NAME", args.sheet_name)
+sheet_id = os.getenv("BUILD_SHEET_ID", args.sheet_id if args.sheet_id else '1aCkwGTla9GpyJwYM92AjeoymEtcNtddhJhJamRM3UuA')
+start = os.getenv("BUILD_SHEET_START", args.start)
+gsheet = gsheets.GSpreadsheet(gid=sheet_id, application='buildprocess')
+gsheet.addSheet(sheet_name, columns=3, colour=(0, 255, 0))
+
+
+class BuildCommand(recipes.GroupCommand):
+    def __init__(self, label, group):
+        recipes.GroupCommand.__init__(self, label, group)
+
+    def update(self, value):
+        left, row = gsheets.cell_decomp(start)
+        right = gsheets.shift_column(left, 2)
+        range_name = gsheets.cell_range(start, right, sheet=sheet_name)
+        c = gsheet.retrieve(range_name, quiet=True)
+        i = -1 # In case the loop doesn't iterate
+        for i in range(len(c)):
+            r = c[i]
+            if len(r) > 1 and r[1] == self._label:
+                i -= 1
+                break
+
+        range_name = gsheets.cell_range((left, row+i+1), right,
+                                        sheet=sheet_name)
+        now = datetime.now()
+        timestamp = now.strftime("%Y/%m/%d %H:%M:%S")
+        values = [[value, self._label, timestamp]]
+        gsheet.update(values, range_name)
+
+    def start(self):
+        self.update('Progress')
+        return
+
+    def end(self, history):
+        self.update('Done' if history[-1] else "Incomplete")
+        return
+
+    def parse(text, base=None):
+        base = base if base else BuildCommand
+        return recipes.GroupCommand.parse(text, base=base)
+
+
+res = recipes.Recipe()
+res.absorb(base=BuildCommand)
+res.colour(args.colour)
+res.activate()
