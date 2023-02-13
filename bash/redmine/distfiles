@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/redmine
+install_file $HOME/lib/redmine include.sh
+
+initialize $HOME/util/redmine
+install_other $HOME/util/redmine

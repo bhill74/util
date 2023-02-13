@@ -1,0 +1,2 @@
+#!/bin/bash
+HOME=/home2/bhill/THOME ./install

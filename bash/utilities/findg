@@ -1,0 +1,5 @@
+#!/bin/bash
+
+pattern=$1
+shift
+find "${@}" -exec grep --color -n -- "$pattern" {} /dev/null \;

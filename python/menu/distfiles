@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/menu
+install_dir $HOME/lib/menu '*.py'
+
+initialize $HOME/util/menu
+install_other $HOME/util/menu
