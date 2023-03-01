@@ -271,7 +271,7 @@ class SelectionBase(ChoiceBase):
         return 0
 
     def decorate_op_size(self):
-        return self.__dict__.update(kwargs)
+        return 0
 
     def preamble(self):
         c = self.choices()
@@ -464,11 +464,12 @@ class SingleSelectionPrompt(SelectionBase):
     Creates a user input of a selection of choices where only one may be chosen
     """
 
-    def __init__(self, out=None):
-        SelectionBase.__init__(self, out=out)
+    def __init__(self, out=None, prompt=None, title=None, default=None, choices=None):
+        SelectionBase.__init__(self, out=out, prompt=prompt, title=title, choices=choices)
 
     def get(self):
-        return SelectionBase.get(self)[0]
+        r = SelectionBase.get(self)
+        return r[0] if isinstance(r, list) else r
 
 
 class MultipleSelectionPrompt(SelectionBase):

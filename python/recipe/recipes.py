@@ -5,6 +5,7 @@ import re
 import shlex
 import glob
 import os
+import pdb
 
 # Personal modules
 sys.path.append(os.path.join(os.getenv('HOME'), "lib", "prompts"))
@@ -50,6 +51,23 @@ def disp_out(msg, indent, out=sys.stdout):
 def disp_err(msg, indent):
     disp_out(add_formatting(msg, codes=[91]), indent, out=sys.stderr)
 
+def ch_dir(path, indent='   ', quiet=False):
+    try:
+        os.chdir(path)
+        pwd = os.getcwd()
+        os.environ['PWD'] = pwd
+        if not quiet:
+            t = add_formatting('Directory;', codes=[1])
+            disp_out("{} {}\n".format(t, pwd), indent=indent)
+        return True
+    except FileNotFoundError:
+        disp_err("Directory: {0} does not exist\n". format(path), indent=indent)
+    except NotADirectoryError:
+        disp_err("{0} is not a directory\n". format(path), indent=indent)
+    except PermissionError:
+        disp_err("You do not have permissions to change {0}\n". format(path), indent=indent)
+
+    return False
 
 class ReturnResult:
     def __init__(self, out, err, code):
@@ -78,19 +96,28 @@ class Command:
     def colour(self, colour):
         self._base_colour = colour;
 
-    def accumulate(self, indent='', history=[]):
-        history.append(self.run(indent=indent, history=history))
+    def accumulate(self, indent='', history=[], stack=[]):
+        r, c = self.run(indent=indent, history=history, stack=stack)
+        if not c:
+            return False
+        history.append(r)
+        return True
 
-    def activate(self, indent='', history=[]):
+    def activate(self, indent='', history=[], stack=[]):
         name = add_formatting(self.process(history), codes=[90+self._base_colour,1])
-        p = prompt.YesNoPrompt(prompt=indent + "Run {}".format(name))
+        p = prompt.ChoicePrompt(options=['Yes', 'No', 'Quit'], prompt=indent + "Run {}".format(name))
         p.colour(self._base_colour)
         answer = p.get()
+        if answer is 'Quit':
+            return False
+
         if answer is "Yes":
-            self.accumulate(indent=indent, history=history)
+            if not self.accumulate(indent=indent, history=history, stack=stack):
+                return False
         else:
             history += [None]*self.size()
 
+        return True
 
 class Recipe:
     def __init__(self):
@@ -107,8 +134,12 @@ class Recipe:
 
     def activate(self):
         history = []
+        stack = []
         for c in self._commands:
-            c.activate(history=history, indent=' ')
+            if not c.activate(history=history, indent=' ', stack=stack):
+                return False
+
+        return True
 
     def parse(self, text, base=Command):
         lines = text.split("\n")
@@ -127,6 +158,46 @@ class Recipe:
             for a in sys.argv[1:]:
                 self.parse(a, base)
        
+
+class CDCommand(Command):
+    def __init__(self, directory, content=None):
+        Command.__init__(self, content)
+        self._directory = directory
+
+    def process(self, history=None):
+        return "Change Directory to: {}".format(self._directory)
+
+    def run(self, indent='', history=[], stack=[]):
+        c = False
+        if ch_dir(self._directory, indent=indent):
+            history.append(self._directory)
+            c = True
+        else:
+            history.append(None)
+
+        return history[-1], c 
+
+
+class PushDirCommand(CDCommand):
+    def __init__(self, directory, content=None):
+        CDCommand.__init__(self, directory, content)
+                
+    def run(self, indent='', history=[], stack=[]):
+        stack.append(os.getcwd())
+        return CDCommand.run(self, indent=indent, history=history)        
+
+
+class PopDirCommand(Command):
+    def __init__(self, content=None):
+        Command.__init__(self, content)
+        
+    def process(self, history=None):
+        return "Return to previous directory"       
+
+    def run(self, indent='', history=[], stack=[]):
+        ch_dir(stack.pop(), indent=indent)
+        return history[-1], True
+
 
 class MenuCommand(Command):
     def __init__(self, menu, content=None, default=None):
@@ -158,7 +229,7 @@ class MenuCommand(Command):
 
         return cmd;
  
-    def run(self, indent='', history=[]):
+    def run(self, indent='', history=[], stack=[]):
         menu = self._menu
         value = None 
         if isinstance(self._default, str):
@@ -166,7 +237,7 @@ class MenuCommand(Command):
         elif self._default:
             value = self._default(history)
         menu.default(value)
-        return ReturnResult(",".join(menu.get()), None, 0)
+        return ReturnResult(",".join(menu.get()), None, 0), True
 
 
 class ShellCommand(Command):
@@ -185,7 +256,7 @@ class ShellCommand(Command):
     def process(self, history):
         return " ".join(self.prepare(history, expand=False))
 
-    def run(self, indent='', history=[]):
+    def run(self, indent='', history=[], stack=[]):
         cmd = self.prepare(history, expand=True)
         out = ""
         err = None
@@ -199,7 +270,9 @@ class ShellCommand(Command):
                     blocks[-1].append(c)
 
             fds = []
+            read_in = open('/dev/tty', 'r')
             p = subprocess.Popen(blocks[0],
+                                 stdin=read_in,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
                                  universal_newlines=True)
@@ -228,7 +301,11 @@ class ShellCommand(Command):
                             c = os.read(fd, 1)
                             if len(c) == 0:
                                 break
-                            s += c.decode('utf-8')
+                            try:
+                                s += c.decode('utf-8')
+                            except Exception as e:
+                                s += "<U>"
+
                             if ord("\n") in c:
                                 break;
 
@@ -261,13 +338,26 @@ class ShellCommand(Command):
         if code != 0:
             disp_out(add_formatting('-- Exit Code --: {}\n'.format(code), codes=[91,1]), indent)
 
-        return ReturnResult(out, err, code)
+        return ReturnResult(out, err, code), True
 
     def parse(text):
         if len(text) == 0:
             return None
 
+        cmds = text.split()
+        if len(cmds) == 2:
+            if cmds[0] == 'cd':
+                return CDCommand(cmds[1])
+
+            if cmds[0] == 'pushd':
+                return PushDirCommand(cmds[1])
+
+        if len(cmds) == 1:
+            if cmds[0] == 'popd':
+                return PopDirCommand()
+
         return ShellCommand(text)
+
 
 class GroupCommand(Command):
     def __init__(self, label, group):
@@ -284,8 +374,9 @@ class GroupCommand(Command):
         Command.colour(self, colour)
         [c.colour(colour) for c in self._group]
 
-    def accumulate(self, indent='', history=[]):
-        self.run(history=history, indent=indent)
+    def accumulate(self, indent='', history=[], stack=[]):
+        r, c = self.run(history=history, indent=indent, stack=stack)
+        return c
 
     def add(self, cmd):
         if isinstance(cmd, Command):
@@ -326,10 +417,14 @@ class GroupCommand(Command):
 
         return base(label, group)
     
-    def run(self, indent='', history=[]):
+    def run(self, indent='', history=[], stack=[]):
+        pwd = os.getcwd()
+        s = stack.copy()
         self.start()
         for c in self._group:
-            c.activate(history=history, indent=indent+'  ')
+            if not c.activate(history=history, indent=indent+'  ', stack=s):
+                return None, False
 
         self.end(history)
-
+        ch_dir(pwd, quiet=True)
+        return None, True

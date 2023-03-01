@@ -31,4 +31,4 @@ if (__name__ == "__main__"):
                                    title=args.title,
                                    default=args.default.split(args.delim) if args.default else None,
                                    choices=args.choices.split(args.delim)).get()
-    print(",".join(result) if result else "")
+    print(args.delim.join(result) if result else "")

@@ -1,4 +1,3 @@
-import gbase
 import os
 import re
 import pkg_resources
@@ -9,12 +8,21 @@ from apiclient import discovery
 import sys
 import io
 import gsheets
+import json
+import pdb
+
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "google"))
+import gbase
+
 
 DRIVE_URL_BASE = "drive.google.com/drive/u/0/"
 
 MIME_TYPE_TXT = 'text/plain'
 MIME_TYPES = {'folder': 'application/vnd.google-apps.folder',
               'sheet':  'application/vnd.google-apps.spreadsheet',
+              'shortcut': 'application/vnd.google-apps.shortcut',
               '.txt':   MIME_TYPE_TXT,
               '.text':  MIME_TYPE_TXT,
               '.csv':   'text/csv',
@@ -23,9 +31,16 @@ MIME_TYPES = {'folder': 'application/vnd.google-apps.folder',
               '.xls':   'application/vnd.ms-excel',
               '.xlsx':  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
               '.pdf':   'application/pdf',
+              '.gz':    'application/gzip',
+              '.gpg':   'application/gpg',
+              '.htm':   'text/html',
+              '.html':  'text/html',
               '.gif':   'image/gif',
               '.png':   'image/png',
               '.jpg':   'image/jpg'}
+
+SHARED_NAME = "Shared with me"
+
 
 def getMimeExt(mimeType):
     return list(MIME_TYPES.keys())[list(MIME_TYPES.values()).index(mimeType)]
@@ -40,15 +55,37 @@ def typeIs(mtype):
 
 
 def typeIsNot(mtype):
-    return "mimeType != '{}'".format(mtype)
+    eq_cmp = "mimeType != '"
+    if isinstance(mtype, list):
+        return eq_cmp + ("' and " + eq_cmp).join(mtype) + "'"
+    elif isinstance(mtype, str):
+        return "{}{}'".format(eq_cmp, mtype)
+
+    return ''
 
 
 def isFolder():
     return typeIs(MIME_TYPES['folder'])
 
 
+def isShortcut():
+    return typeIs(MIME_TYPES['shortcut'])
+
+
+def isShared():
+    return "sharedWithMe"
+
+
+def isAnyFolder():
+    return '{} and sharedWithMe = true'.format(isFolder())
+
+
 def isNotFolder():
     return typeIsNot(MIME_TYPES['folder'])
+
+
+def isNotFolderOrShortcut():
+    return typeIsNot([MIME_TYPES['folder'], MIME_TYPES['shortcut']])
 
 
 def nameIs(name):
@@ -95,8 +132,34 @@ def _mkdir(path):
     if not os.path.exists(path):
         os.mkdir(path)
 
+
+_format_pattern = re.compile('\033\[((\d+;)*?\d+)?m')
+
+
+def _format_code(*codes):
+    """Escapes the formatting code"""
+    return '\033[{}m'.format(";".join([str(c) for c in codes]))
+
+
+def _format_str(text, *codes):
+    if len(codes) == 0:
+        return text
+
+    return _format_code(*codes) + text + _format_code()
+
+
+def _remove_formatting(text):
+    return re.sub(_format_pattern, '', text)
+
+
+def _add_path(paths, new_paths, name):
+    for p in paths:
+        new_paths.append(os.path.join(name, p) if len(p) else name)
+
+
 def transferMsg(gfile, name):
-    gfile = gfile if isinstance(gfile, GFile) else GFile(gfile['id'], gfile['name'])
+    gfile = gfile if isinstance(gfile, GFile) \
+        else GFile(gfile['id'], gfile['name'])
     print("{} --> {}/{}".format(gfile.getPaths()[0], os.getcwd(), name))
 
 
@@ -129,60 +192,120 @@ class GDriveBase(gbase.GoogleAPI):
         try:
             return self.get_files().get(fileId=gid,
                                         fields=",".join(fields)).execute()
-        except:
+        except Exception as e:
             return None
 
-    def toItems(self, items):
+    def toItems(self, items, parent=None):
         results = []
         for i in items:
             if i['mimeType'] == MIME_TYPES['folder']:
-                results.append(GFolder(i['id'], i['name'],
-                               application=self.application,
-                               credentials=self.get_credentials(),
-                               service=self.get_service()))
+                results.append(self.toFolder(i, parent))
+            elif i['mimeType'] == MIME_TYPES['shortcut']:
+                results.append(self.toShortcut(i, parent))
             else:
-                results.append(GFile(i['id'], i['name'],
-                               application=self.application,
-                               credentials=self.get_credentials(),
-                               service=self.get_service()))
+                results.append(self.toFile(i, parent))
 
         return results
 
-    def toFile(self, item):
+    def toFile(self, item, parent=None):
         return GFile(item['id'], item['name'],
                      application=self.application,
                      credentials=self.get_credentials(),
-                     service=self.get_service())
+                     service=self.get_service(),
+                     parent=parent)
 
-    def toFiles(self, results):
-        return [self.toFile(r) for r in results]
+    def toFiles(self, results, parent=None):
+        return [self.toFile(r, parent) for r in results]
 
-    def toFolder(self, item):
+    def toShortcut(self, item, parent=None):
+        gid = None
+        shortcutId = item['id'] if 'id' in item else None
+        mimeType = None
+        if 'shortcutDetails' not in item:
+            i = self.infoById(shortcutId, ['shortcutDetails'])
+            item = dict(item, **i)
+
+        if 'shortcutDetails' in item:
+            details = item['shortcutDetails']
+            gid = details['targetId'] if 'targetId' in details \
+                else gid
+            mimeType = details['targetMimeType'] if 'targetMimeType' in details \
+                else mimeType
+
+        return GShortcut(gid, shortcutId,
+                         name=item['name'] if 'name' in item else '',
+                         mimeType=mimeType,
+                         application=self.application,
+                         credentials=self.get_credentials(),
+                         service=self.get_service(),
+                         parent=parent)
+
+    def toShortcuts(self, results, parent=None):
+        return [self.toShortcut(r, parent) for r in results]
+
+    def toFolder(self, item, parent=None):
         return GFolder(item['id'], name=item['name'],
                        application=self.application,
                        credentials=self.get_credentials(),
-                       service=self.get_service())
+                       service=self.get_service(),
+                       parent=parent)
 
-    def toFolders(self, results):
-        return [self.toFolder(r) for r in results]
+    def toFolders(self, results, parent=None):
+        return [self.toFolder(r, parent) for r in results]
 
     def uniqueName(self, path, unique=False):
         return path if not unique else "{}:{}".format(path, self.gid)
 
+    def getRootFolder(self):
+        return GFolder('root',
+                       application=self.application,
+                       credentials=self.get_credentials(),
+                       service=self.get_service())
+
+    def getShared(self):
+        return GShared(application=self.application,
+                       credentials=self.get_credentials(),
+                       service=self.get_service())
+
 
 class GItem(GDriveBase):
     def __init__(self, gid, name='',
-                 application=None, credentials=None, service=None):
+                 application=None,
+                 credentials=None,
+                 service=None,
+                 parent=None):
         self.gid = gid
         self.name = name
+        self.parents = [parent] if parent else []
         GDriveBase.__init__(self, "",
                             application=application,
                             credentials=credentials,
                             service=service)
 
+    def isFile(self):
+        return False
+
+    def isFolder(self):
+        return False
+
+    def isShortcut(self):
+        return False
+
+    def isShared(self):
+        return False
+
+    def isRoot(self):
+        return False
+
+    def formatName(self):
+        return self.name
+
     def getParents(self):
+        if len(self.parents):
+            return self.parents
+
         parents = self.infoById(self.gid, ['parents'])
-        if len(parents) == 0:
+        if not parents or len(parents) == 0:
             return []
 
         results = [self.infoById(g, ['id', 'name'])
@@ -192,57 +315,75 @@ class GItem(GDriveBase):
     def remove(self):
         self.get_files().delete(fileId=self.gid).execute()
 
-    def getPaths(self):
-        paths = ['']
-        dirs = [self]
-        while len(dirs):
-            result = []
-            new_paths = []
-            for d in dirs:
-                for p in d.getParents():
-                    result.append(p)
+    def _add_node(self, path):
+        if self.isRoot():
+            return [path]
 
-                    for p in paths:
-                        if len(p):
-                            p = "/{}".format(p)
+        path.insert(0, self.formatName())
+        if self.isShared():
+            return [path]
 
-                        new_paths.append("{}{}".format(d.name, p))
+        parents = self.getParents()
+        if parents and len(parents):
+            r = []
+            for p in parents:
+                r += p._add_node(path[:])
 
-            dirs = result
-            if len(result) == 0:
-                break
+            return r
 
-            paths = new_paths
+        if not self.isShortcut():
+            i = self.infoById(self.gid, ['sharedWithMeTime'])
+            if i and 'sharedWithMeTime' in i:
+                return self.getShared()._add_node(path)
 
-        return paths
+        return []
 
-    def fullPath(self, filter=None, unique=False):
-        if ('/' not in filter):
+    def getPaths(self, cache={}):
+        if self.isRoot():
+            return []
+
+        return [os.path.join(*p) for p in self._add_node([])]
+
+    def fullPath(self, filter=None, unique=False, cache={}):
+        if filter and len(os.path.split(filter)) <= 1:
             return self.uniqueName(self.name, unique)
 
-        paths = self.getPaths()
+        paths = self.getPaths(cache={})
         if filter:
-            paths = [p for p in paths if filter in p]
+            pat = get_pattern(filter)
+            paths = [p for p in paths
+                     if pat.match(_remove_formatting(p))]
 
-        if len(paths):
-            return self.uniqueName(paths[0], unique)
+        if len(paths) == 0:
+            return ''
 
-        return ''
+        return os.path.join(paths[0], ' ') if self.isFolder() \
+            else paths[0]
 
 
 class GFile(GItem):
     def __init__(self, gid, name,
-                 application=None, credentials=None, service=None):
+                 application=None,
+                 credentials=None,
+                 service=None,
+                 parent=None):
         GItem.__init__(self, gid, name=name,
                        application=application,
                        credentials=credentials,
-                       service=service)
+                       service=service,
+                       parent=parent)
+
+    def isFile(self):
+        return True
 
     def __rep__(self):
         return "<GFile: {} ({})>".format(self.name, self.gid)
 
     def __str__(self):
         return self.__rep__()
+
+    def formatName(self):
+        return self.name
 
     def text(self):
         result = self.get_files().export(fileId=self.gid,
@@ -275,7 +416,8 @@ class GFile(GItem):
                 elif mimeType == MIME_TYPES['.doc']:
                     ext = '.docx'
 
-                mimeType = MIME_TYPES[ext] if ext in MIME_TYPES else MIME_TYPES['.csv']
+                mimeType = MIME_TYPES[ext] if ext in MIME_TYPES \
+                    else MIME_TYPES['.csv']
                 name = "{}{}".format(fname, ext)
 
         if not quiet:
@@ -390,70 +532,131 @@ class GFile(GItem):
                                     application=self.application)
 
 
-class GItem(GDriveBase):
-    def __init__(self, gid, name='',
-                 application=None, credentials=None, service=None):
-        self.gid = gid
-        self.name = name
-        GDriveBase.__init__(self, "",
-                            application=application,
-                            credentials=credentials,
-                            service=service)
-
-    def getParents(self):
-        parents = self.infoById(self.gid, ['parents'])
-        if len(parents) == 0:
-            return []
-
-        results = [self.infoById(g, ['id', 'name'])
-                   for g in parents['parents']]
-        return self.toFolders(results)
-
-    def getPaths(self):
-        paths = ['']
-        dirs = [self]
-        while len(dirs):
-            result = []
-            new_paths = []
-            for d in dirs:
-                for p in d.getParents():
-                    result.append(p)
-
-                    for p in paths:
-                        if len(p):
-                            p = "/{}".format(p)
-
-                        new_paths.append("{}{}".format(d.name, p))
-
-            dirs = result
-            if len(result) == 0:
-                break
-
-            paths = new_paths
-
-        return paths
-
-    def fullPath(self, filter=None, unique=False):
-        if ('/' not in filter):
-            return self.uniqueName(self.name, unique)
-
-        paths = self.getPaths()
-        if filter:
-            paths = [p for p in paths if filter in p]
-
-        if len(paths):
-            return self.uniqueName(paths[0], unique)
-
-        return ''
-
-
-class GFolder(GItem):
-    def __init__(self, gid, name='',
-                 application=None, credentials=None, service=None):
+class GContainer(GItem):
+    def __init__(self, gid, name,
+                 application=None,
+                 credentials=None,
+                 service=None,
+                 parent=None):
         GItem.__init__(self, gid, name=name,
                        application=application,
                        credentials=credentials,
-                       service=service)
+                       service=service,
+                       parent=parent)
+
+    def isFolder(self):
+        return True
+
+    def isRoot(self):
+        return self.isFolder() and self.gid == 'root'
+
+    def _base(self):
+        return None
+
+    def search(self, param={}):
+        return GDrive.activeSearch(self, resolveQ(param, self._base()))
+
+    def getItems(self, query=None):
+        criteria = {'fields': ['id', 'name', 'mimeType', 'shortcutDetails', 'sharedWithMeTime']}
+        if query:
+            criteria['q'] = query
+
+        items = self.search(criteria)
+        r = self.toItems(items, self)
+        if self.isRoot():
+            r.append(GShared(application=self.application,
+                             credentials=self.get_credentials(),
+                             service=self.get_service()))
+
+        return r
+
+    def getItemsByPattern(self, pattern):
+        query = None
+        if pattern:
+            query = "name contains '{}'".format(pattern)
+
+        pattern = get_pattern(pattern)
+        return [r for r in self.getItems(query) if re.match(pattern, r.name)]
+
+    def getFiles(self):
+        return self.toFiles(self.search(isNotFolderOrShortcut()), self) + \
+            self.getShortcutsByNotType(MIME_TYPES['folder'])
+
+    def getFilesByName(self, name):
+        terms = [isNotFolderOrShortcut(), nameIs(name)]
+        return self.toFiles(self.search(terms), self)
+
+    def getFilesContainsName(self, name):
+        terms = [isNotFolderOrShortcut(), nameContains(name)]
+        return self.toFiles(self.search(terms))
+
+    def getFilesByType(self, mtype):
+        terms = [isNotFolderOrShortcut(), typeIs(mtype)]
+        return self.toFiles(self.search(terms))
+
+    def getFilesByPattern(self, pattern):
+        pattern = get_pattern(pattern)
+        return [f for f in self.getFiles() if re.match(pattern, f.name)]
+
+    def getShortcuts(self):
+        p = {'q': isShortcut(), 'fields': ['id', 'name', 'shortcutDetails']}
+        return self.toShortcuts(self.search(p), self)
+
+    def getShortcutsByType(self, mimeType):
+        return [s for s in self.getShortcuts() if s.mimeType == mimeType]
+
+    def getShortcutsByNotType(self, mimeType):
+        return [s for s in self.getShortcuts() if s.mimeType != mimeType]
+
+    def getFolders(self):
+        return self.toFolders(self.search(isFolder()), self) + \
+            self.getShortcutsByType(MIME_TYPES['folder'])
+
+    def getFoldersByName(self, name):
+        terms = [isFolder(), nameIs(name)]
+        return self.toFolders(self.search(terms), self)
+
+    def getFoldersByPattern(self, pattern):
+        pattern = get_pattern(pattern)
+        return [f for f in self.getFolders() if re.match(pattern, f.name)]
+
+    def resolve(self, paths, create=False, debug=None):
+        if isinstance(paths, str):
+            paths = os.path.normpath(paths).split(os.path.sep)
+
+        if debug:
+            print("resolve(): Paths ", paths)
+
+        size = len(paths)
+        if size == 0:
+            return [self]
+
+        if paths[0] == '':
+            return [self] if size == 1 else \
+               self.resolve(paths[1:], create=create)
+
+        result = []
+        if size > 1:
+            dirs = self.getFoldersByPattern(paths[0])
+            if len(dirs) == 0 and create:
+                dirs = [self.createFolder(paths[0])]
+            if len(dirs) == 0:
+                return []
+
+            dirs.sort(key=lambda x: x.name)
+            for d in dirs:
+                result += d.resolve(paths[1:], create=create)
+
+        else:
+            result = self.getItemsByPattern(paths[0])
+            if len(result) == 0 and create:
+                result = [self.createFolder(paths[0])]
+            if len(result) == 0:
+                return []
+
+            result.sort(key=lambda x: x.name)
+
+        return result
 
     def download(self, output=None, quiet=False):
         cwd = os.getcwd()
@@ -474,49 +677,6 @@ class GFolder(GItem):
 
         if output:
             os.chdir(cwd)
-
-    def search(self, param={}):
-        base_q = "'{}' in parents".format(self.gid)
-        return GDrive.activeSearch(self, resolveQ(param, base_q))
-
-    def getItems(self):
-        items = self.search({'fields': ['id', 'name', 'mimeType']})
-        return self.toItems(items)
-
-    def getItemsByPattern(self, pattern):
-        pattern = get_pattern(pattern)
-        items = self.search({'fields': ['id', 'name', 'mimeType']})
-        return self.toItems([r for r in items if re.match(pattern, r['name'])])
-
-    def getFiles(self):
-        return self.toFiles(self.search(isNotFolder()))
-
-    def getFilesByName(self, name):
-        terms = [isNotFolder(), nameIs(name)]
-        return self.toFiles(self.search(terms))
-
-    def getFilesContainsName(self, name):
-        terms = [isNotFolder(), nameContains(name)]
-        return self.toFiles(self.search(terms))
-
-    def getFilesByType(self, mtype):
-        terms = [isNotFolder(), typeIs(mtype)]
-        return self.toFiles(self.search(terms))
-
-    def getFilesByPattern(self, pattern):
-        pattern = get_pattern(pattern)
-        return [f for f in self.getFiles() if re.match(pattern, f.name)]
-
-    def getFolders(self):
-        return self.toFolders(self.search(isFolder()))
-
-    def getFoldersByName(self, name):
-        terms = [isFolder(), nameIs(name)]
-        return self.toFolders(self.search(terms))
-
-    def getFoldersByPattern(self, pattern):
-        pattern = get_pattern(pattern)
-        return [f for f in self.getFolders() if re.match(pattern, f.name)]
 
     def createFile(self, name, content):
         mimeType = content['mimeType'] if 'mimeType' in content \
@@ -548,7 +708,7 @@ class GFolder(GItem):
         result = self.get_files().create(body=body,
                                          media_body=media,
                                          fields='id').execute()
-        return self.toFiles([{'id': result['id'], 'name': name}])[0]
+        return self.toFiles([{'id': result['id'], 'name': name}], self)[0]
 
     def createFileFromStdin(self, name, content):
         content['stream'] = io.BytesIO()
@@ -561,28 +721,91 @@ class GFolder(GItem):
         result = self.get_files().create(body=body, fields='id').execute()
         return self.toFolder({'id': result['id'], 'name': name})
 
-    def resolve(self, paths, create=False):
-        if isinstance(paths, str):
-            paths = paths.split('/')
 
-        size = len(paths)
-        if size == 0 or paths[0] == '':
-            return [self]
+class GShared(GContainer):
+    def __init__(self,
+                 application=None, credentials=None, service=None):
+        GContainer.__init__(self, 'sharedWithMe', name=SHARED_NAME,
+                            application=application,
+                            credentials=credentials,
+                            service=service)
 
-        result = []
-        if size > 1:
-            dirs = self.getFoldersByPattern(paths[0])
-            if len(dirs) == 0 and create:
-                dirs = [self.createFolder(paths[0])]
+    def isShared(self):
+        return True
 
-            for d in dirs:
-                result += d.resolve(paths[1:], create=create)
-        else:
-            result = self.getItemsByPattern(paths[0])
-            if len(result) == 0 and create:
-                result = [self.createFolder(paths[0])]
+    def formatName(self):
+        return _format_str(self.name, 91)
 
-        return result
+    def _base(self):
+        return 'sharedWithMe = true'
+
+    def _prepend_path(self, path):
+        path.prepend(self.formatName())
+        return [path]
+
+    def __str__(self):
+        return "GShared: {} ({})".format(self.name, self.gid)
+
+
+class GShortcut(GContainer):
+    def __init__(self, gid, shortcutgid, name='', mimeType=None,
+                 application=None, credentials=None, service=None,
+                 parent=None):
+        GContainer.__init__(self, gid, name=name,
+                            application=application,
+                            credentials=credentials,
+                            service=service,
+                            parent=parent)
+        self.shortcutgid = shortcutgid
+        if not mimeType:
+            i = self.infoById(gid, ['mimeType'])
+            if i and 'mimeType' in i:
+                mimeType = i['mimeType']
+
+        self.mimeType = mimeType
+
+    def isFile(self):
+        return True if self.mimeType == MIME_TYPES['file'] else False
+
+    def isFolder(self):
+        return True if self.mimeType == MIME_TYPES['folder'] else False
+
+    def isShortcut(self):
+        return True
+
+    def _base(self):
+        return "'{}' in parents".format(self.gid) if self.isFolder() else None
+
+    def formatName(self):
+        return _format_str(self.name, 32)
+
+    def __str__(self):
+        return "GShortcut: {} ({})".format(self.name, self.gid)
+
+
+class GFolder(GContainer):
+    def __init__(self, gid, name='',
+                 application=None,
+                 credentials=None,
+                 service=None,
+                 parent=None):
+        GContainer.__init__(self, gid, name=name,
+                            application=application,
+                            credentials=credentials,
+                            service=service,
+                            parent=parent)
+
+    def _base(self):
+        return "'{}' in parents".format(self.gid)
+
+    def getFolders(self):
+        f = GContainer.getFolders(self)
+        if self.isRoot():
+            f.append(GShared(application=self.application,
+                             credentials=self.get_credentials(),
+                             service=self.get_service()))
+
+        return f
 
     def open(self):
         gbase.GoogleAPI.open(
@@ -613,7 +836,6 @@ class GDrive(GDriveBase):
 
         param['fileId'] = fileId
 
-        results = []
         response = service.files().get(fileId=fileId).execute()
         return response
 
@@ -636,6 +858,8 @@ class GDrive(GDriveBase):
         results = []
         page_token = None
         while True:
+            sys.stdout.flush()
+            #print("PP", param)
             response = service.files().list(**param).execute()
             page_token = response.get('nextPageToken', None)
             results.extend(response.get('files', []))
@@ -650,7 +874,7 @@ class GDrive(GDriveBase):
         return GDrive.search(self, resolveQ(param, "trashed=false"))
 
     def getFiles(self):
-        return self.toFiles(self.activeSearch(isNotFolder()))
+        return self.toFiles(self.activeSearch(isNotFolderOrShortcut()), self)
 
     def getFileById(self, gid):
         result = GDrive.byId(self, gid, {})
@@ -660,36 +884,30 @@ class GDrive(GDriveBase):
         return None
 
     def getFilesByName(self, name):
-        terms = [isNotFolder(), nameIs(name)]
-        return self.toFiles(self.activeSearch(terms))
+        terms = [isNotFolderOrShortcut(), nameIs(name)]
+        return self.toFiles(self.activeSearch(terms), self)
 
     def getFilesContainsName(self, name):
-        terms = [isNotFolder(), nameContains(name)]
-        return self.toFiles(self.activeSearch(terms))
+        terms = [isNotFolderOrShortcut(), nameContains(name)]
+        return self.toFiles(self.activeSearch(terms), self)
 
     def getFilesByType(self, mtype):
-        terms = [isNotFolder(), typeIs(mtype)]
-        return self.toFiles(self.activeSearch(terms))
+        terms = [isNotFolderOrShortcut(), typeIs(mtype)]
+        return self.toFiles(self.activeSearch(terms), self)
 
     def getFolders(self):
-        return self.toFolders(self.activeSearch(isFolder()))
+        return self.toFolders(self.activeSearch(isFolder()), self)
 
     def getFolderById(self, gid):
-        terms = [isFolder(), idIs(gid)]
-        return self.toFolders(self.activeSearch(terms))
+        terms = [isFolderOrShortcut(), idIs(gid)]
+        return self.toFolders(self.activeSearch(terms), self)
 
     def getFoldersByName(self, name):
-        terms = [isFolder(), nameIs(name)]
-        return self.toFolders(self.activeSearch(terms))
+        terms = [isFolderOrShortcut(), nameIs(name)]
+        return self.toFolders(self.activeSearch(terms), self)
 
-    def getRootFolder(self):
-        return GFolder('root',
-                       application=self.application,
-                       credentials=self.get_credentials(),
-                       service=self.get_service())
-
-    def resolve(self, path, create=False):
-        return self.getRootFolder().resolve(path, create=create)
+    def resolve(self, path, create=False, debug=None):
+        return self.getRootFolder().resolve(path, create=create, debug=debug)
 
     def open(self):
         self.getRootFolder().open()

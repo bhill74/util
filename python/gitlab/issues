@@ -1,0 +1,126 @@
+#!/usr/bin/python3 -B
+
+import os
+import sys
+import getopt
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "table"))
+import table
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "gitlab"))
+import gitlab
+
+
+try:
+    opts, other = getopt.getopt(sys.argv[1:],
+                                "t:d:p:T:u:s:L:l:nh",
+                                ("token=", "domain=", "project=", "title=",
+                                 "user=", "state=", "label=", "limit=",
+                                 "noopt", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-t/--token <TOKEN>] [-d/--domain <DOMAIN>] "
+          "[-p/--project <PROJECT>] "
+          "[-v/--variable @all/<NAME>] [-u/--user @all/<USER>] "
+          "[-s/--state @all /<STATE>] [-l/--limit <LIMIT>] "
+          "[-h/--help]".format(program))
+    print("Used to search and report the pipeline inforamation "
+          "from a specific project in a gitlab server.\n")
+    print("  -h, --help         Display this help information")
+    print("  -t, --token        The GitLab token to use in the query")
+    print("  -d, --domain       The GitLab domain")
+    print("  -p, --project      The full project name from the GitLab server")
+    print("  -T, --title        Text to be included in the title")
+    print("  -u, --user         The name of the user to filter, otherwise "
+          "'@all' will")
+    print("                     include the user in the results table")
+    print("  -s, --state       The state to filter, otherwise '@all' will "
+          "include the")
+    print("                     state in the results table")
+    print("  -l, --limit        The number of pipelines to query\n")
+    print("  -n, --noopt        Perform no operations\n")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+
+
+project_name = 'dsim'
+domain = 0
+token = 0
+extra = []
+params = {'per_page': 10}
+preview = 0
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-d', '--domain'):
+        domain = a
+
+    if o in ('-t', '--token'):
+        token = a
+
+    if o in ('-p', '--project'):
+        project_name = a
+
+    if o in ('-u', '--user'):
+        if 'user' not in params:
+            params['user'] = []
+
+        params['user'] = a
+        extra.append('user')
+
+    if o in ('-s', '--state'):
+        if 'state' not in params:
+            params['state'] = []
+
+        params['state'].append(a)
+        extra.append('state')
+
+    if o in ('-L', '--label'):
+        if 'labels' not in params:
+            params['labels'] = []
+
+        params['labels'].append(a)
+        extra.append('labels')
+
+    if o in ('-l', '--limit'):
+        params['per_page'] = a
+
+    if o in ('-T', '--title'):
+        if 'title' not in params:
+            params['title'] = []
+
+        params['title'].append(a)
+
+    if o in ('-n', '--noopt'):
+        preview = 1
+
+table_headers = ['ID', 'Created At', 'Title']
+headers = {}
+
+for e in extra:
+    if e in headers:
+        table_headers.append(headers[e])
+    else:
+        table_headers.append(e.replace('_', ' ').title())
+
+table_headers
+table_rows = []
+
+issues = gitlab.Issues(project_name, domain=domain, preview=preview)
+for i in issues.query(params, token=token):
+    table_rows.append([])
+    table_rows[-1].append(i['iid'])
+    table_rows[-1].append(i['created_at'])
+    table_rows[-1].append(i['title'])
+    for e in extra:
+        v = i[e]
+        table_rows[-1].append(",".join(v) if isinstance(v, list) else v)
+
+print(table.format(table_headers, table_rows))

@@ -1,18 +1,23 @@
-#!/usr/bin/python3 -b
+#!/usr/bin/python3 -B
 
 import os
-import sys
-import gdrive
 import getopt
-import json
+import sys
 import re
 from collections import Counter
+import json
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "google"))
+import gdrive
+
 
 try:
     opts, other = \
         getopt.getopt(sys.argv[1:],
-                "i:l:f:p:m:LhqoP:",
+                "i:l:f:p:m:LhqoP:eI",
                       ("id=", "location=", "file=", "path=", "mimeType=",
+                       "expand", "info",
                        "ls", "quiet", "output", "props=", "help"))
 except getopt.GetoptError as err:
     print(str(err))
@@ -34,6 +39,7 @@ def usage():
     print("  -m, --mimeType     Define the output mime-time")
     print("  -q, --quiet        Operate in quiet mode")
     print("  -o, --output       Send content to stdout")
+    print("  -I, --info         Display the google drive information")
     print("Report bugs to: brian.hill@metrics.ca\n")
 
 
@@ -50,6 +56,8 @@ quiet = False
 output = False
 mimeType = False
 props = []
+expand = False
+info=False
 
 for o, a in opts:
     if o in ('-h', '--help'):
@@ -87,66 +95,43 @@ for o, a in opts:
     if o in ('-P', '--props'):
         props += a.split(r'\s*,\s')
 
+    if o in ('-e', '--expand'):
+        expand = True
+
+    if o in ('-I', '--info'):
+        info = True
+
 gd = gdrive.GDrive('fromdrive')
 
+loc = content['location']
+locs = os.path.split(loc)
+if expand or (len(locs) > 1 and locs[-1] == ''):
+    loc = re.sub('\*?$', '*', loc)
+
 # Resolve the base folder and search pattern
-pattern = None
 if 'id' in content and content['id'] != '':
     r = [gd.getFileById(content['id'])]
-elif content['location'] == '':
+elif loc == '':
     r = [gd.getRootFolder()]
 else:
-    r = gd.resolve(content['location'], create=False)
-    if len(r) == 0:
-        dirname = os.path.dirname(content['location'])
-        pattern = "{}*".format(os.path.basename(content['location']))
-        if dirname == '':
-            r = [gd.getRootFolder()]
-        else:
-            r = gd.resolve(dirname, create=False)
-
-tc = count([x.name for x in r])
-
-
-def showInfo(f, c):
-    p = props.copy()
-    if c[f.name] > 1:
-        p += ['id']
-
-    info = ''
-    if len(p):
-        extra = f.infoById(f.gid, p)
-        info = ' {'
-        for k, v in extra.items():
-            info += "{}:{}, ".format(k, str(v))
-
-        info = re.sub(r', $', '}', info)
-
-    print(f.fullPath(filter=content['location'], unique=False), info)
-
+    r = gd.resolve(loc, create=False)
 
 # Process every result
 for g in r:
-    if isinstance(g, gdrive.GFile):
+    if info:
+        print(json.dumps(g.infoById(g.gid, ['*']), indent=4))
+
+    elif isinstance(g, gdrive.GFile):
         if ls:
-            showInfo(g, tc)
+            print(g.fullPath(filter=loc))
         elif output:
             print(g.text())
         else:
             g.download(quiet=quiet, mimeType=mimeType)
 
     elif ls:
-        dirs = g.getFoldersByPattern(pattern) if pattern else g.getFolders()
-        dirs.sort(key=lambda x: x.name)
-        c = count([x.name for x in dirs])
-        for d in dirs:
-            print("{}/".format(d.fullPath(filter=content['location'], unique=(c[d.name] > 1))))
+        print(g.fullPath(filter=loc))
 
-        files = g.getFilesByPattern(pattern) if pattern else g.getFiles()
-        files.sort(key=lambda x: x.name)
-        c = count([x.name for x in files])
-        for f in files:
-            showInfo(f, c)
     elif output:
         print("Output does not apply to more than one result")
     else:

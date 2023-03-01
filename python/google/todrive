@@ -3,9 +3,12 @@
 import os
 import sys
 import select
-import gdrive
 import getopt
 import io
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "google"))
+import gdrive
 
 
 try:

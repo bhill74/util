@@ -1,0 +1,34 @@
+#!/usr/bin/python3
+#
+# Used to create an interactive prompt
+
+import argparse
+import sys
+import os
+
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "prompts"))
+import prompt
+
+
+if (__name__ == "__main__"):
+    # Create the parser
+    my_parser = argparse.ArgumentParser(description = "Creates an interactive select prompt for the user.")
+
+    # Add the arguments
+    my_parser.add_argument("-prompt", dest="prompt", type=str, default=None, help="The prompt to give")
+    my_parser.add_argument("-title", dest="title", type=str, default=None, help="The title to show")
+    my_parser.add_argument("-choices", dest="choices", type=str, default=None, help="The options to offer")
+    my_parser.add_argument("-default", dest="default", type=str, default=None, help="The default value")
+    my_parser.add_argument("-delim", dest="delim", type=str, default=",", help="The delimiter for splitting the values")
+
+
+    # Execute the parse_args() method
+    args = my_parser.parse_args()
+
+    result = prompt.SingleSelectionPrompt(out=sys.stderr,
+                                          prompt=args.prompt,
+                                          choices=args.choices.split(args.delim),
+                                          default=args.default).get()
+    print(result if result else "")

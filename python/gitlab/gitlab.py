@@ -4,13 +4,20 @@
 GitLab objects
 """
 
-from local_config import LocalConfigParser
+import sys
 import os
 import json
 import requests
+import logging
 import urllib.parse
 import re
 import time
+from inspect import isfunction
+
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "config"))
+from local_config import LocalConfigParser
 
 
 class Config(LocalConfigParser):
@@ -121,6 +128,30 @@ def _isCompleteStatus(status):
 _history_props = ['status', 'name', 'web_url', 'variables']
 
 
+def _is_match(a, b):
+    if isinstance(a, str) and isinstance(b, str):
+        if a in b:
+            return True
+        if b in a:
+            return True
+
+        return False
+
+    if isinstance(a, list) and isinstance(b, str):
+        if b in a:
+            return True
+
+        if len([s for s in a if b in a]) > 0:
+            return True
+
+        return False
+
+    if isinstance(a, str) and isinstance(b, list):
+        return _is_match(b, a)
+
+    return False
+
+
 class Base:
     """
     The base GitLab class for interfacing with the GitLab WebAPI.
@@ -140,6 +171,19 @@ class Base:
         self.preview = preview
         self.access_token = access_token
 
+    def _debug_():
+        try:
+            import http.client as http_client
+        except ImportError:
+            import httplib as http_client
+        http_client.HTTPConnection.debuglevel = 1
+
+        logging.basicConfig()
+        logging.getLogger().setLevel(logging.DEBUG)
+        requests_log = logging.getLogger('requests.packages.urllib3')
+        requests_log.setLevel(logging.DEBUG)
+        requests_log.propagate = True
+
     def get(self, url, headers={}, data={}, stream=False, token=None):
         if self.preview:
             print("URL: {}".format(url))
@@ -154,6 +198,21 @@ class Base:
             headers['PRIVATE-TOKEN'] = token
 
         return requests.get(url, headers=headers, data=data, stream=stream)
+
+    def put(self, url, headers={}, data={}, stream=False, token=None):
+        if self.preview:
+            print("URL: {}".format(url))
+
+        if not token:
+            token = self._access_token()
+
+        if not token:
+            raise ValueError("Missing access token")
+
+        if "token" not in headers:
+            headers['PRIVATE-TOKEN'] = token
+
+        return requests.put(url, headers=headers, data=data, stream=stream)
 
     def post(self, url, headers={}, data={}, token=None):
         if self.preview:
@@ -258,6 +317,12 @@ class Base:
     def _schedules_api(self, project):
         return Base._project_api(self, project) + "/pipeline_schedules"
 
+    def _labels_api(self, project):
+        return Base._project_api(self, project) + "/labels"
+
+    def _issues_api(self, project):
+        return Base._project_api(self, project) + "/issues"
+
     def _jobs_api(self, project):
         return Base._project_api(self, project) + "/jobs"
 
@@ -293,12 +358,57 @@ class Base:
         r = requests.post(url, data=var)
         return json.loads(r.text)
 
-    def query(self, project, api_func=None, params={}, token=None):
+    def query(self, project, api_func=None, filter=None, info_func=None, params={}, token=None):
         results = []
         fields = {'page': 1, 'per_page': 10}
+        select = set()
+        user_base = {}
+        users = Users(domain=self.domain, preview=self.preview, access_token=token)
+
         for k, v in params.items():
-            if v != '@all' and not isinstance(v, list):
-                fields[k] = v
+            if v == '@all' or (isinstance(v, list) and '@all' in v):
+                continue
+
+            if k == 'per_page':
+                fields['per_page'] = v
+
+            dtype = None
+            if filter:
+                if k not in filter:
+                    select.add(k)
+                    continue
+
+                dtype = filter[k]
+            else:
+                select.add(k)
+
+            if (not dtype or dtype == 'string'):
+                if isinstance(v, str):
+                    fields[k] = v
+                elif isinstance(v, list) and len(v) == 1:
+                    fields[k] = v[0]
+            elif (not dtype or dtype == 'list'):
+                if isinstance(v, str):
+                    fields[k] = v
+                elif isinstance(v, list):
+                    fields[k] = ','.join(v)
+            elif dtype == 'user':
+                base = k
+                if k.endswith('_id'):
+                    base = k.replace('_id', '')
+                    u = users.byId(v)
+                else:
+                    if k.endswith('name'):
+                        base = k.replace('name', '')
+
+                    u = users.bySearch(v)
+
+                fields[k] = ','.join([str(uu.id()) for uu in u])
+                select.add(k)
+                user_base[k] = base
+            elif isfunction(dtype):
+                for kk, vv in dtype(params, k).items():
+                    fields[kk] = vv
 
         url = api_func(self, project) if project else api_func(self)
 
@@ -316,26 +426,55 @@ class Base:
             for res in self.getJSON(url, data=fields, token=token, default=[]):
                 complete = False
 
+                #print(json.dumps(res, indent=5))
                 if res == 'error' or res == 'message':
                     return results
 
-                # If STATUS is something to fiter on.
-                if 'status' in params:
-                    if '@all' not in params['status'] and \
-                       'status' in res and \
-                       res['status'] not in params['status']:
-                        continue
+                keep = True
+                for k in select:
+                    if filter and k in filter:
+                        t = filter[k]
+                        if t == 'user':
+                            if k in res:
+                                continue
 
-                # If USER is something to filter on.
-                if 'user' in params:
-                    info = self.pipeline(project, res['id'], token=token)
-                    if '@all' not in params['user'] and \
-                       info['user']['username'] not in params['user']:
-                        continue
+                            if not info_func:
+                                continue
 
-                    res['user'] = info['user']['username']
-                    res['username'] = info['user']['name']
+                            base = user_base[k]
+                            info = info_func(self, project, res['id'], token=token)
+                            if '@all' not in params[k]:
+                                match = None
+                                p = params[k]
+                                for u in ['username', 'name', 'id']:
+                                    if _is_match(info[base][u], p):
+                                        match = u 
 
+                                if not match:
+                                    keep = False
+                                    break
+
+                            res[base] = info[base]['username']
+                            res[base + '_name'] = info[base]['name']
+                            res[base + '_id'] = info[base]['id']
+                            continue
+
+                    if isinstance(params[k], list) and '@all' not in params[k] and k in res:
+                        v = res[k]
+                        if isinstance(k, str):
+                            if v not in params[k]:
+                                keep = False
+                                break
+
+                        elif isinstance(k, list):
+                            p = set(params[k])
+                            if len(p - set(res[k])) != len(p): 
+                                keep = False
+                                break
+
+                if not keep:
+                    continue
+            
                 # If the VARIABLES are something to filter on.
                 if 'variables' in params:
                     variables = Base.variables(self, project, res['id'],
@@ -361,6 +500,7 @@ class Base:
 
                             res['variable_values'][name] = variables[name]
 
+               
                     if count != len(params['variables']):
                         continue
 
@@ -388,6 +528,11 @@ class Base:
     def schedule(self, project, schedule_id, token=None):
         url = "{}/{}".format(Base._schedules_api(self, project),
                              schedule_id)
+        return self.getJSON(url, token=token, default={})
+
+    def issue(self, project, issue_id, token=None):
+        url = "{}/{}".format(Base._issues_api(self, project),
+                             issue_id)
         return self.getJSON(url, token=token, default={})
 
     def job(self, project, job_id, token=None):
@@ -623,6 +768,18 @@ class Project(Base):
         """
         return Base._pipelines_api(self, self.project)
 
+    def _labels_api(self):
+        """
+        Returns the labels API url specific to this project
+        """
+        return Base._labels_api(self, self.project)
+
+    def _issues_api(self):
+        """
+        Returns the issues API url specific to this project
+        """
+        return Base._issues_api(self, self.project)
+
     def _schedules_api(self):
         """
         Returns the schedules API url specific to this project
@@ -688,13 +845,39 @@ class Project(Base):
         """
         Used to query pipelines. 
         """
-        return Base.query(self, self.project, api_func=api_func, params=params, token=token)
+        filter = {'status': 'string',
+                  'user_id': 'user',
+                  'user': 'user' }
+        self.preview = False;#True
+        return Base.query(self, self.project,
+                          api_func=api_func, filter=filter, info_func=Base.pipeline,
+                          params=params, token=token)
 
     def pipeline(self, pipeline_id, token=None):
         """
         Used to retrieve a pipeline by ID. 
         """
         return Pipeline(self.project, pipeline_id, self.domain, self.preview)
+
+    def labels(self, token=None):
+        """
+        Used to retrieve all the labels
+        """
+        url = self._labels_api()
+        return self.getJSON(url, token=token, default={})
+
+    def issues(self, token=None):
+        """
+        Used to retrieve all issues
+        """
+        url = self._issues_api()
+        return self.getJSON(url, token=token, default={})
+
+    def issue(self, issue_id, token=None):
+        """
+        Used to retrieve a schedule by ID.
+        """
+        return Issue(self.project, issue_id, self.domain, self.preview)
 
     def schedules(self, token=None):
         """
@@ -1191,6 +1374,159 @@ class Schedule(Project):
             msg = info['message'] if 'message' in info else "{} Unknown".format(response.status_code) 
             print("Unable to remove variable {} ({})".format(key, msg))
             return 
+
+
+class Issues(Project):
+    """
+    A class for interfacing with GitLab Issues
+
+    Arguments:
+        project -- The unique name or ID of a project in GitLab
+        [domain] -- The GitLab domain, will default to the local configuration
+        [preview = 0] -- Whether to display the access operations and not actually perform any communication
+        [access_token] -- The GitLab access token, will default to the local configuration.
+    """
+
+    def __init__(self, project, domain=None, preview=0):
+        super().__init__(project, domain, preview)
+
+    def __rep__(self):
+        return "<Issues on {}>".format(Project.name(self))
+
+    def __str__(self):
+        return self.__rep__()
+
+    def query(self, params={}, token=None):
+        """
+        Performs a search of all existing Issues based on given parameters.
+        """
+        def process(params, k):
+            return {'search': params[k],
+                    'in': k}
+
+        filter = {'assignee': 'user_id',
+                  'assignee_name': 'user_name',
+                  'author': 'user_id',
+                  'author_name': 'user_name',
+                  'confidential': 'boolean',
+                  'created_after': 'date',
+                  'due_date': 'date',
+                  'state': 'string',
+                  'labels': 'list',
+                  'title': process 
+                  }
+        return Base.query(self, self.project,
+                          api_func=Base._issues_api, 
+                          filter=filter, info_func=Base.issue,
+                          params=params, token=token)
+
+
+class Issue(Project):
+    """
+    A class for interfacing with a single GitLab Issue.
+
+    Arguments:
+        project -- The unique name or ID of a project in GitLab.
+        issue_id -- The unique ID of a GitLab issue.
+        [domain] -- The GitLab domain, will default to the local configuration.
+        [preview = 0] -- Whether to display the access operations and not actually perform any communication
+    """
+
+    def __init__(self, project, issue_id, domain=None, preview=0):
+        self.issue_id = issue_id
+        super().__init__(project, domain, preview)
+
+    def __rep__(self):
+        return "<Issue {} on {}>".format(self.issue_id, Project.name(self))
+
+    def api(self):
+        return "{}/{}".format(Base._issues_api(self, self.project), self.issue_id)
+
+    def notes_api(self):
+        return "{}/notes".format(self.api())
+
+    def info(self, token=None):
+        """
+        Retrieve the GitLab record
+        """
+        return Base.issue(self, self.project, self.issue_id)
+
+    def description(self, info=None, token=None):
+        """
+        Retrieve the issue description
+        """
+        return self.attr('description', info=info, token=token)
+
+    def owner(self, info=None, token=None):
+        """
+        Retrieve the owner.
+        """
+        return self._user_attr('owner', info=info, token=token)
+
+    def state(self, info=None, token=None):
+        """
+        Retrieve the state
+        """
+        return self.attr('state', info=info, token=token)
+
+    def labels(self, info=None, token=None):
+        """
+        Retrieve the labels
+        """
+        return self.attr('labels', info=info, token=token)
+
+    def notes(self, token=None):
+        return self.postJSON(self.notes_api())
+
+    def add_note(self, note, token=None, quiet=False):
+        url = self.notes_api() 
+        if isinstance(note, str):
+            note = {'body': note}
+
+        response = self.post(url, data=note, token=token)
+        if response.status_code != 201 and not quiet:
+            info = json.loads(response.text)
+            msg = info['message'] if 'message' in info else '{} Unknown'.format(response.status_code)
+            print("Unable to add note to issue {} ({})".format(self.issue_id, msg))
+            return False
+
+        return True
+
+    def edit(self, operations, token=None, quiet=False):
+        url = self.api() 
+        response = self.put(url, data=operations, token=token)
+        if response.status_code != 200 and not quiet:
+            info = json.loads(response.text)
+            msg = info['message'] if 'message' in info else '{} Unknown'.format(response.status_code)
+            print("Unable to edit issue {} ({})".format(self.issue_id, msg))
+            return False
+
+        return True
+
+    def add_label(self, label, token=None):
+        """
+        Add a new label
+        """
+        return self.edit({'add_labels', label}, token=token)
+
+    def remove_label(self, label, token=None):
+        """
+        Remove a label
+        """
+        return self.edit({'remove_labels', label}, token=token)
+
+    def reassign(self, user, ops={}, token=None):
+        users = Users(domain=self.domain,
+                      preview=self.preview,
+                      access_token=token) 
+        u = users.bySearch(user) 
+        if len(u) != 1:
+            print("Could not resolve {} to a single user".format(user))
+            return
+    
+        ops['assignee_id'] = u[0].id();
+        note = "Assigned to {}".format(u[0].name())
+        return self.edit(ops, token=token) and self.add_note(note, token=token)
 
 
 class Repositories(Project):

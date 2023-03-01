@@ -1,5 +1,10 @@
 #!/bin/bash
 
+source ${HOME}/util/util/settings.sh
+source ${HOME}/util/prompts/settings.sh
+
+base=$(cd $(dirname $BASH_SOURCE) && pwd)
+
 declare -A tests
 tests[tests]=''
 tests[vests]='clifton vests-master/vhdl-93/dsim/billowitch'
@@ -10,15 +15,25 @@ w=24
 x=50
 y=100
 
-for r in "${!tests[@]}"
+val=$(checkbox -choices tests,vests,vh_tests,interra2k1,interraSV,interraVHDL2008,interraMX -default tests,vests,vh_tests,interraVHDL2008)
+for t in ${val//,/ }
 do
-    names=(${tests[$r]})
-    cmd="cd ../../test/dsim/$r; pwd; module list; runtests --remote ${names[@]}; any_key"
-    xterm -geometry "${h}x${w}+${x}+${y}" -title "Using $r" -e "$cmd" &
+    case $t in 
+        tests|vests|vh_tests)
+            names=(${tests[$t]})
+            cmd="cd ../../test/dsim/$t; pwd; module list; runtests --remote ${names[@]}; any_key"
+            xterm -geometry "${h}x${w}+${x}+${y}" -title "Using $t" -e "$cmd" &
+            ;;
+        interra*)
+            f=${t//interra/ }
+            xterm -geometry "${h}x${w}+${x}+${y}" -title "Using $f" -e "module list; ${base}/dinterra $f; any_key"
+            ;;
+        *)
+            echo "Unknown tests"
+            ;;
+    esac
+
     x=$(($x+100))
     y=$(($y+100))
     sleep 0.5
 done
-
-base=$(cd $(dirname $BASH_SOURCE) && pwd)
-xterm -geometry "${h}x${w}+${x}+${y}" -title "Using VHDL2008" -e "module list; ${base}/dtriage; any_key"

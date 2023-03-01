@@ -1,8 +1,14 @@
-#!/usr/bin/python3 -b
+#!/usr/bin/python3 -B
 
 import os
 import sys
 import getopt
+
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "table"))
+import table
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "gitlab"))
 import gitlab
 
 
@@ -54,8 +60,7 @@ def usage():
 project_name = 'dsim'
 domain = 0
 token = 0
-use_users = False
-use_status = False
+extra = []
 use_variables = False
 params = {'per_page': 10}
 preview = 0
@@ -79,14 +84,14 @@ for o, a in opts:
             params['user'] = []
 
         params['user'] = a
-        use_users = True
+        extra.append('user')
 
     if o in ('-s', '--status'):
         if 'status' not in params:
             params['status'] = []
 
         params['status'].append(a)
-        use_status = True
+        extra.append('status')
 
     if o in ('-l', '--limit'):
         params['per_page'] = a
@@ -108,11 +113,8 @@ for o, a in opts:
         preview = 1
 
 table_headers = ['ID', 'Created At']
-if use_users:
-    table_headers.append('User')
-
-if use_status:
-    table_headers.append('Status')
+for e in extra:
+    table_headers.append(e.replace('_', ' ').title())
 
 if use_variables:
     table_headers.append('Variables')
@@ -123,42 +125,19 @@ table_headers += key_headers
 table_rows = []
 
 pipe = gitlab.Pipelines(project_name, preview=preview)
-
-
-def format_table(headers, matrix,
-                 top_format, left_format, cell_format, row_delim, col_delim):
-    table = [headers] + [row for row in matrix]
-    table_format = [['{:^{}}'] + len(headers) * [top_format]] \
-        + len(matrix) * [[left_format] + len(headers) * [cell_format]]
-    col_widths = [max(len(format.format(cell, 0))
-                      for format, cell in zip(col_format, col))
-                  for col_format, col in zip(zip(*table_format), zip(*table))]
-    return row_delim.join(
-                col_delim.join(
-                    format.format(cell, width)
-                    for format, cell, width in
-                    zip(row_format, row, col_widths))
-                for row_format, row in zip(table_format, table))
-
-
 for pl in pipe.query(params, token=token):
     table_rows.append([])
     table_rows[-1].append(pl['id'])
     table_rows[-1].append(pl['created_at'])
-    if use_users:
-        table_rows[-1].append(pl['username'])
-
-    if use_status:
-        table_rows[-1].append(pl['status'])
+    for e in extra:
+        table_rows[-1].append(pl[e])
 
     if use_variables:
         table_rows[-1].append(', '.join(pl['variable_names']))
+
     for k in key_headers:
         table_rows[-1].append(
                 pl['variable_values'][k] if k in
                 pl['variable_values'] else '')
 
-table = format_table(table_headers,
-                     table_rows,
-                     '{:^{}}', '{:<{}}', '{:>{}}', '\n', ' | ')
-print(table)
+print(table.format(table_headers, table_rows))
