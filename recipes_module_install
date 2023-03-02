@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./base_module_install -n recipes "${@}" ./python/recipe ./bash/recipe ./python/prompts ./python/google

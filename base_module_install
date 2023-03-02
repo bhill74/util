@@ -1,0 +1,61 @@
+#!/bin/bash
+
+base=$(cd $(dirname $BASH_SOURCE) && pwd)
+
+name=${USER}
+ver=$(date +"%Y%m%d")
+base_path=/tools/metrics.ca
+base_mod=/tools/Modules
+callback=''
+is_test=0
+
+titles=()
+while getopts "n:p:m:tc:" opt
+do
+    case $opt in
+        n)
+            name=$OPTARG
+            ;;
+        p)
+            base_path=$OPTARG
+            ;;
+        m)
+            base_mod=$OPTARG
+            ;;
+        t)
+            ver=${ver}_test
+            is_test=1
+            ;;
+        c)
+            callback=$OPTARG
+            ;;
+    esac
+done
+shift $(($OPTIND - 1))
+
+path=${base_path}/${USER}/${name}/${ver}
+mod=${base_mod}/${USER}/${name}
+
+echo "Installing into $path"
+rm -rf $path/*
+mods="${@}"
+${base}/install "$path" "$mods"
+if [[ $is_test -eq 0 ]]
+then
+    echo "Replacing latest"
+    pushd $path/.. >/dev/null
+    rm latest
+    ln -s $ver latest
+    popd >/dev/null
+fi
+
+echo "Adding module $ver"
+pushd $mod >/dev/null
+cp latest $ver 2>/dev/null
+popd >/dev/null
+
+if [ ! -z "$callback" ]
+then
+    echo "Calling callback"
+    $callback $path
+fi

@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./base_module_install -n fibery "${@}" ./python/fibery ./bash/fibery ./bash/metrics ./python/metrics ./python/menu ./python/config

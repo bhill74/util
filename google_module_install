@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./base_module_install -n google "${@}" ./python/google ./bash/google ./python/menu ./python/config
