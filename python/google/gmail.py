@@ -1,12 +1,19 @@
-import gbase
 import os
+import sys
 import re
-from apiclient import discovery
 import pkg_resources
 import locale
 import time
 import json
 import base64
+
+# Local modules
+import gbase
+
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
+from apiclient import discovery
+
 
 MAIL_URL_BASE = "mail.google.com/mail/u/0/?tab=rm&ogbl#inbox/"
 UNKNOWN_SUBJECT = 'Unknown'

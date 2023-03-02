@@ -1,9 +1,12 @@
 import os
 import sys
 
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
 from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
+
 import webbrowser
 
 API_DOMAIN = "www.googleapis.com"

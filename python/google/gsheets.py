@@ -1,15 +1,18 @@
-import httplib2
-import gbase
 import os
+import sys
 import re
-from apiclient import discovery
 import pkg_resources
 import locale
 import time
 
 # Local modules
+import gbase
 import gdrive
 
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
+import httplib2
+from apiclient import discovery
 
 SHEET_URL_BASE = "docs.google.com/spreadsheets/d/"
 

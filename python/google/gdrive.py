@@ -1,21 +1,21 @@
 import os
 import re
 import pkg_resources
+import sys
+import io
+import json
+import pdb
+
+# Local modules
+import gbase
+import gsheets
+
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
 from apiclient import errors
 from apiclient import http
 from apiclient import discovery
-import sys
-import io
-import gsheets
-import json
-import pdb
-
-
-# Personal modules
-sys.path.append(os.path.join(os.getenv('HOME'), "lib", "google"))
-import gbase
-
 
 DRIVE_URL_BASE = "drive.google.com/drive/u/0/"
 
