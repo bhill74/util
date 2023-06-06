@@ -16,7 +16,8 @@ API_URL = "https://{}".format(API_DOMAIN)
 class GoogleAPI:
     def __init__(self, api, scopes, secret, application,
                  credentials=None, service=None,
-                 credential_dir=None):
+                 credential_dir=None,
+                 credential_path=None):
         self.api = api
         if not isinstance(scopes, list):
             scopes = (scopes)
@@ -26,7 +27,14 @@ class GoogleAPI:
         self.application = application
         self.credentials = credentials
         self.credential_dir = credential_dir
-        if not self.credential_dir:
+        self.credential_path = credential_path
+        if not self.credential_path:
+            if 'GOOGLE_CREDS' in os.environ:
+                self.credential_path = os.getenv('GOOGLE_CREDS', None)
+
+        if self.credential_path:
+            self.credential_dir = os.path.dirname(self.credential_path)
+        elif not self.credential_dir:
             home_dir = os.path.expanduser('~')
             self.credential_dir = os.path.join(home_dir, '.credentials')
 
@@ -36,7 +44,7 @@ class GoogleAPI:
         #print("creds: ", self.credentials)
         #print("creds_dir: ", self.credential_dir)
         self.service = service
-        self.debug = False
+        self.debug = os.getenv('GOOGLE_DEBUG', 'False') == 'True'
 
     def debugMsg(self, header, msg=""):
         if not self.debug:
@@ -59,13 +67,15 @@ class GoogleAPI:
         if not os.path.exists(self.credential_dir):
             os.makedirs(self.credential_dir)
 
-        credential_file = \
-            '{}.{}-python-{}.json'.format(
-                self.api, API_DOMAIN, self.application)
-        self.debugMsg("Credential File", credential_file)
+        credential_path = self.credential_path
+        if not credential_path:
+            credential_file = \
+                '{}.{}-python-{}.json'.format(
+                    self.api, API_DOMAIN, self.application)
+            self.debugMsg("Credential File", credential_file)
 
-        credential_path = \
-            os.path.join(self.credential_dir, credential_file)
+            credential_path = \
+                os.path.join(self.credential_dir, credential_file)
         self.debugMsg("Credential Path", credential_path)
 
         store = Storage(credential_path)
