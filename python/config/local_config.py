@@ -1,6 +1,10 @@
 # import select, json, getopt, sys
+import os
+#import sys
+
+# External modules
+#sys.path.insert(0, os.path.join(os.getenv('HOME'), 'lib', 'ext'))
 from configparser import ConfigParser
-import os.path
 
 
 class LocalConfigParser(ConfigParser):

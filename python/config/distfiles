@@ -5,3 +5,4 @@ source $BASE/functions
 
 initialize $HOME/lib/config
 install_other $HOME/lib/config
+#pip3 install --target $HOME/lib/ext --upgrade configparser
