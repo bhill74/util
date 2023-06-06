@@ -1,13 +1,18 @@
 #!/usr/bin/python3 -b
 
 import getopt
-import metrics_fibery
 import sys
 import re
 import os
+
+# Local modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'metrics'))
+import metrics_fibery
+
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
 import colorama
 from colorama import Fore, Style
-
 
 colorama.init(autoreset=True)
 

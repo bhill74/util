@@ -224,17 +224,17 @@ if args.ref:
 
             if not o:
                 tests[r['test']] = (r,None)
-                break
+                continue
 
             if r['result'] == 'PASSED_SIMULATION' and o['result'] == 'PASSED_SIMULATION':
-                break
+                continue
 
             if key != k:
                 tests[r['test']] = (r,o)
-                break
+                continue
             elif r['result'] == o['result']:
                 if o['diag'] == '':
-                    break
+                    continue
 
             for i in r.keys():
                 if i != 'score' and r[i] != o[i]:

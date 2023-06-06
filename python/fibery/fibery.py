@@ -5,21 +5,22 @@ Fibery objects
 """
 
 import os
+import sys
 import json
 import requests
 import urllib.parse
 import re
 import subprocess
 import traceback
-import sys
 
-from pyparsing import nestedExpr
-
-sys.path.append("{}/lib/config".format(os.getenv('HOME')))
+# Local modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "config"))
 from local_config import LocalConfigParser
 
-sys.path.append("{}/.local/lib/python3.7/site-packages".format(os.getenv('HOME')))
+# External modules
+sys.path.insert(0, os.path.join(os.getenv('HOME'), 'lib', 'ext'))
 import browsercookie
+from pyparsing import nestedExpr
 
 # Standard Names
 _FIBERY_id = 'fibery/id' 
@@ -431,7 +432,7 @@ class Base:
                 args = {}
 
             args['params'] = params
-   
+ 
         res = self.command(command, args, domain=domain, token=token)
 
         if not isinstance(res, list):
@@ -445,6 +446,7 @@ class Base:
        
         if not res['success']:
             print("Error: {}".format(res['result']['message']))
+            exit()
             return []
 
         if self._debug():
@@ -751,7 +753,7 @@ class Database(Object):
         else:
             fields = select
 
-        print("S", select, "Q", query, "P", params)
+        #print("S", select, "Q", query, "P", params)
 
         query['q/select'] = []
         for f in fields:
@@ -1131,8 +1133,9 @@ class CommonDatabase(Database):
         text_type = _FIBERY_text_type
 
         results = {}
+        params = {}
         for i in range(len(terms)):
-            params = {'$value{}'.format(i): terms[i]}
+            params['$value{}'.format(i)] = terms[i]
 
         fields = self.fields()
         for t in [f for f in fields if f.type() == _FIBERY_text_type]:

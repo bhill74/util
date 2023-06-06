@@ -61,6 +61,12 @@ def cell_decomp(cell):
     return "", 0
 
 
+def to_colour(colour):
+    return {'red': (colour[0]+0.0)/255, 
+            'green': (colour[1]+0.0)/255,
+            'blue': (colour[2]+0.0)/255}
+
+
 def shift_column(column, offset):
     a = ord('A')
     val = [ord(c)-a for c in column.upper()]
@@ -166,7 +172,7 @@ class GSpreadsheet(GItem):
                        client_file=client_file,
                        credential_dir=credential_dir)
 
-    def init(self, name):
+    def init(self, name, sheetName='Sheet1', rows=200, columns=26, colour=None):
         if self.gid is not None:
             return self.gid
 
@@ -180,13 +186,16 @@ class GSpreadsheet(GItem):
             sheets=[
                 {
                     'properties': {
-                        'gridProperties': {'columnCount': 26, 'rowCount': 200},
+                        'gridProperties': {'columnCount': columns, 'rowCount': rows},
                         'index': 0,
                         'sheetId': 0,
                         'sheetType': 'GRID',
-                        'title': self.application
+                        'title': sheetName 
                     }
                 }])
+
+        if colour:
+            sheet['sheets'][0]['properties']['tabColor'] = to_colour(colour) 
 
         try:
             result = self.get_spreadsheets().create(
@@ -209,12 +218,32 @@ class GSpreadsheet(GItem):
 
         return False
 
-    def addSheet(self, sheetName, rows=None, columns=None, colour=None):
-        info = self.get_spreadsheets().get(spreadsheetId=self.gid).execute()
+    def info(self):
+        return self.get_spreadsheets().get(spreadsheetId=self.gid).execute()
+
+    def url(self):
+        info = self.info()
+        return info['spreadsheetUrl']
+
+    def getSheetInfo(self, sheetId):
+        info = self.info()
         if info and 'sheets' in info:
-            sheets = [s for s in info['sheets'] if s['properties']['title'] == sheetName]
-            if len(sheets):
-                return False
+            sheets = [s for s in info['sheets'] if s['properties']['title'] == sheetId or s['properties']['sheetId'] == sheetId]
+            return sheets[0] if len(sheets) else None
+
+        return None 
+
+    def getSheetIndex(self, sheetName):
+        info = self.getSheetInfo(sheetName)
+        if not info:
+            return -1
+
+        return info['properties']['sheetId']
+
+    def addSheet(self, sheetName, rows=None, columns=None, colour=None):
+        info = self.getSheetInfo(sheetName)
+        if info:
+            return False
 
         # TODO: Update sheet if not a match to properies??
         r = {'addSheet': {'properties': {'title': sheetName}}}
@@ -225,10 +254,21 @@ class GSpreadsheet(GItem):
             if columns:
                 r['addSheet']['properties']['gridProperties']['columnCount'] = columns
         if colour:
-            r['addSheet']['properties']['tabColor'] = \
-                {'red': (colour[0] + 0.0/255), 'green': (colour[1]+0.0)/255, 'blue': (colour[2]+0.0)/255}
+            r['addSheet']['properties']['tabColor'] = to_colour(colour) 
 
         return self._batchUpdate(r)
+
+    def protect(self, values, rangeName="A1"):
+        r = [{'addProtectedRange':
+                {'protectedRange':
+                    {'range': {
+                        'sheetId': 0, #index,
+                        'startRowIndex': 0,
+                        'startColumnIndex': 1,
+                        'endColumnIndex': 2 },
+                     'description': 'getting a lock'}}}]
+        res = self._batchUpdate(r)
+        print("RES", res)
 
     def update(self, values, rangeName="A1"):
         try:

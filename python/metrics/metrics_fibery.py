@@ -1,3 +1,8 @@
+import os
+import sys
+
+# Local modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'fibery'))
 from fibery import *
 
 #BugPrefix = "FB"
@@ -121,3 +126,35 @@ class Story(CommonEntity):
 
 
 RegisterDatabase(Stories, Story)
+
+
+class InterraIssues(CommonDatabase):
+    """
+        A representation of an Interra Issue database
+    """
+    def __init__(self, domain=None, token=None):
+        super().__init__(InterraIssue, 'DSIM Development/Interra issue', domain, token)
+
+    def stories(self, query={}, limit=None):
+        stories = self.query(query=query, limit=limit)
+        return self.toItems(stories)
+
+
+class InterraIssue(CommonEntity):
+    """
+        A representation of an Interra Issue (DSIM)
+    """
+    def __init__(self, issue, domain=None, token=None):
+        super().__init__(issue, InterraIssues, domain, token)
+
+    def name(self):
+        return self._attr('DSIM Development/name')
+
+    def id(self):
+        return InterraIssue.prefix() + CommonEntity.id(self)
+
+    def prefix():
+        return "FII"
+
+
+RegisterDatabase(InterraIssues, InterraIssue)
