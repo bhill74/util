@@ -177,6 +177,9 @@ class GDriveBase(gbase.GoogleAPI):
                                  credentials=credentials,
                                  service=service)
 
+    def batch(self):
+        return self.get_service().new_batch_http_request(calllback=callback)
+
     def get_service(self):
         if not self.service:
             self.service = \
@@ -185,6 +188,36 @@ class GDriveBase(gbase.GoogleAPI):
 
         return self.service
 
+    def get_permission_ids(self):
+        r = self.service.permissions().list(fileId=self.gid).execute()
+        if 'permissions' in r:
+            return r['permissions']
+        return None
+
+    def get_permissions(self):
+        return self.infoById(self.gid, ['capabilities'])
+
+    def get_domain(self):
+        owners = self.infoById(self.gid, ['owners'])
+        if 'owners' in owners:
+            for o in owners['owners']:
+                domain = o['emailAddress'].split('@')[1]
+                return domain
+
+        return None
+
+    def set_domain_permission(self, role='reader', domain=None):
+        domain = domain if domain else self.get_domain()
+
+        permission = {
+            'type': 'domain',
+            'role': role,
+            'domain': domain
+        }
+        r = self.service.permissions().create(fileId=self.gid,
+                                              body=permission,
+                                              fields='id').execute()
+ 
     def get_files(self):
         return self.get_service().files()
 

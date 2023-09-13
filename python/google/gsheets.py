@@ -15,6 +15,10 @@ import httplib2
 from apiclient import discovery
 
 SHEET_URL_BASE = "docs.google.com/spreadsheets/d/"
+SHEET_DELIM = "!"
+SHEET_CELL_DELIM = ":"
+SHEET_BASE_COLUMN = ord('A')
+SHEET_COLUMN_SIZE = 26
 
 
 def canonicalizeId(gid):
@@ -24,6 +28,12 @@ def canonicalizeId(gid):
         return match.groups()[0]
 
     return gid
+
+
+def to_colour(colour):
+    return {'red': (colour[0]+0.0)/255, 
+            'green': (colour[1]+0.0)/255,
+            'blue': (colour[2]+0.0)/255}
 
 
 def cell_addr(cell):
@@ -40,11 +50,11 @@ def cell_addr(cell):
 def cell_range(start, end=None, sheet=None):
     addr = ""
     if sheet:
-        addr = sheet + "!"
+        addr = sheet + SHEET_DELIM
 
     addr += cell_addr(start)
     if end:
-        addr += ":" + cell_addr(end)
+        addr += SHEET_CELL_DELIM + cell_addr(end)
 
     return addr
 
@@ -52,7 +62,8 @@ def cell_range(start, end=None, sheet=None):
 def cell_decomp(cell):
     if isinstance(cell, str):
         c = re.compile(r'\d+').split(cell)[0]
-        r = int(cell[len(c):])
+        v = cell[len(c):]
+        r = int(v) if len(v) else -1
         return c, r
 
     if isinstance(cell, tuple):
@@ -61,44 +72,60 @@ def cell_decomp(cell):
     return "", 0
 
 
-def to_colour(colour):
-    return {'red': (colour[0]+0.0)/255, 
-            'green': (colour[1]+0.0)/255,
-            'blue': (colour[2]+0.0)/255}
+def column_to_index(column):
+    val = [ord(c)-SHEET_BASE_COLUMN for c in column.upper()][::-1]
+
+    r = 0
+    f = 1;
+    for i in range(len(val)):
+        r += (val[i] + (1 if i > 0 else 0))*f
+        f *= SHEET_COLUMN_SIZE;
+
+    return r
+
+
+def index_to_column(index):
+    if index == 0:
+        return chr(SHEET_BASE_COLUMN)
+
+    val = []
+    while True:
+        val.insert(0, index % SHEET_COLUMN_SIZE)
+        if index < SHEET_COLUMN_SIZE:
+            break
+        index = int(index/SHEET_COLUMN_SIZE) - 1
+
+    return "".join([chr(c+SHEET_BASE_COLUMN) for c in val])
 
 
 def shift_column(column, offset):
-    a = ord('A')
-    val = [ord(c)-a for c in column.upper()]
-    size = 26
-    last = size-1
+    return index_to_column(column_to_index(column) + offset)
 
-    r = offset
-    for i in range(len(val)-1, -1, -1):
-        val[i] += r
-        r = int(val[i]/size)
-        #print(" *V", val)
-        if val[i] > last:
-            val[i] %= last
-        elif val[i] < 0:
-            val[i] = ((size+val[i]) % size)
-            r -= 1
-        else:
-            r = 0
 
-        #print(" I", val, r)
-        if r == 0:
-            break
+def cell_to_index(address, offset=0):
+    c, r = cell_decomp(address)
+    i = column_to_index(c) + offset
+    if r > -1:
+        r += offset - 1
 
-    if r > 0:
-        val.prepend(r)
-    elif r == -1 and val[0] == last:
-        val = val[1:]
-    elif r != 0:
-        print("Offset too large")
-        return column
+    return i, r
 
-    return "".join([chr(c+a) for c in val])
+
+def range_to_info(cell_range):
+    info = {'sheetId': 0 }
+    if SHEET_DELIM in cell_range:
+        info['sheetName'], cell_range = cell_range.split(SHEET_DELIM)
+
+    if SHEET_CELL_DELIM in cell_range:
+        start, end = cell_range.split(SHEET_CELL_DELIM)
+        info['startColumnIndex'], info['startRowIndex'] = cell_to_index(start)
+        info['endColumnIndex'], info['endRowIndex'] = cell_to_index(end, 1)
+    else:
+        info['startColumnIndex'], info['startRowIndex'] = cell_to_index(cell_range)
+        info['endColumnIndex'] = info['startColumnIndex'] + 1
+        info['endRowIndex'] = info['startRowIndex'] + 1
+
+    return info
 
 
 class GSheetBase(gbase.GoogleAPI):
@@ -240,6 +267,14 @@ class GSpreadsheet(GItem):
 
         return info['properties']['sheetId']
 
+    def getRangeInfo(self, rangeName):
+        info = range_to_info(rangeName)
+        if 'sheetName' in info:
+            info['sheetId'] = self.getSheetIndex(info['sheetName'])
+            del info['sheetName']
+        
+        return info
+    
     def addSheet(self, sheetName, rows=None, columns=None, colour=None):
         info = self.getSheetInfo(sheetName)
         if info:
@@ -261,14 +296,9 @@ class GSpreadsheet(GItem):
     def protect(self, values, rangeName="A1"):
         r = [{'addProtectedRange':
                 {'protectedRange':
-                    {'range': {
-                        'sheetId': 0, #index,
-                        'startRowIndex': 0,
-                        'startColumnIndex': 1,
-                        'endColumnIndex': 2 },
+                    {'range': self.getRangeInfo(rangeName),
                      'description': 'getting a lock'}}}]
         res = self._batchUpdate(r)
-        print("RES", res)
 
     def update(self, values, rangeName="A1"):
         try:
@@ -308,6 +338,16 @@ class GSpreadsheet(GItem):
             return None
 
         return result['values'] if 'values' in result else []
+
+    def setNote(self, note, rangeName="A1"):
+        r = [{'repeatCell':
+                {'range': self.getRangeInfo(rangeName), 
+                 'cell': {'note': note},
+                 'fields': 'note'}}]
+        res = self._batchUpdate(r)
+
+    def removeNote(self, rangeName="A1"):
+        self.setNote('', rangeName)
 
     def export(self, mimeType=None, output=None, quiet=False):
         output = output if output else self.name
