@@ -5,7 +5,7 @@ source $BASE/functions
 
 initialize $HOME/lib/fibery
 install_dir $HOME/lib/fibery '*.py'
-pip3 install --target $HOME/lib/ext browsercookie colorama pyparsing
+pip3 install --target $HOME/lib/ext browsercookie --upgrade colorama pyparsing
 
 initialize $HOME/util/fibery
 install_other $HOME/util/fibery

@@ -5,6 +5,7 @@ source $BASE/functions
 
 initialize $HOME/lib/metrics
 install_dir $HOME/lib/metrics '*.py'
+pip3 install --target $HOME/lib/ext --upgrade colorama
 
 initialize $HOME/util/metrics
 install_other $HOME/util/metrics

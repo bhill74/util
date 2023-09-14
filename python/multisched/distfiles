@@ -1,0 +1,15 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/multisched
+install_dir $HOME/lib/multisched '*.py'
+initialize $HOME/lib/multisched/schedulers
+pushd schedulers
+install_dir $HOME/lib/multisched/schedulers '*.py'
+popd
+#pip3 install --target $HOME/lib/ext --upgrade oauth2client google_api_python_client
+
+initialize $HOME/util/multisched
+install_dir $HOME/util/multisched 'sched_*'
