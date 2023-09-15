@@ -6,7 +6,7 @@ sys.dont_write_bytecode = True
 
 SERVE_PID = -1
 
-def setup():
+def startup():
     address, default = manager.get_address()
     os.environ['SCHED_PORT'] = str(address[1])
     SERVE_PID = os.fork()
@@ -16,6 +16,18 @@ def setup():
     else:
         time.sleep(1)
 
+def settings():
+    return manager.settings()
+
+def set_setting(key, value):
+    s = manager.settings()
+    s[key] = value
+    os.environ[manager.settings_var()] = json.dumps(s)
+
+def remove_setting(key):
+    s = manager.settings()
+    del s[key]
+    os.environ[manager.settings_var()] = json.dumps(s)
 
 def bins(value):
     manager.bins(value)
@@ -25,7 +37,6 @@ def distribute():
 
 def shutdown():
     manager.shutdown() 
-    print("Shutdown")
     os.wait()
 
 def submit(cmd, params={}):

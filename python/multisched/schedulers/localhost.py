@@ -45,6 +45,8 @@ class Scheduler(base.Base):
 
         out_f.write("Command: {}\n".format(cmd))
 
+        self.debug_msg("CMD {}".format(str(cmd)))
+
         try:
             p = subprocess.Popen(cmd,
                                  stdout=out_f,

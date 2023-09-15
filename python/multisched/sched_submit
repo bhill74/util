@@ -2,10 +2,27 @@
 
 import os
 import sys
+import argparse
+import shlex
 sys.dont_write_bytecode = True
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'multisched'))
 import manager
 
-print(manager.submit(sys.argv[1:]))
+my_parser = argparse.ArgumentParser(description = "Submit a job to the MultiScheduler.")
+
+# Add the arguments
+my_parser.add_argument("--param", dest="param", action='append', type=str, default=[], help="The parameter key=value setting")
+
+args = my_parser.parse_known_args()
+params = {}
+for p in args[0].param:
+    k, v = p.split('=')
+    params[k] = v
+
+cmd = args[-1]
+if len(cmd) == 1:
+    cmd = shlex.split(cmd[0])
+
+print(manager.submit(cmd, params=params))

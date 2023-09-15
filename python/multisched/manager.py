@@ -192,11 +192,11 @@ class SharedJobs:
         with self.lock:
             return len(self.jobs) or len(self.queue) or len(self.bins) or self.live.value
 
-    def wait_for(self, ids):
+    def wait_for(self, values, attrib='job_id'):
         while True:
             with self.lock:
-                j = [j for j in self.jobs if j['job_id'] in ids]
-                q = [q for q in self.queue if q['job_id'] in ids]
+                j = [j for j in self.jobs if attrib in j and j[attrib] in values]
+                q = [q for q in self.queue if attrib in q and q[attrib] in values]
                 if len(j) == 0 and len(q) == 0:
                     return True
                 
@@ -204,7 +204,20 @@ class SharedJobs:
 
         return False
 
- 
+    def status(self, job_id, sched):
+        with self.lock:
+            for j in [j for j in self.jobs if j['job_id'] == job_id]:
+                return sched._query_job(j)
+
+            for j in [q for q in self.queue if q['job_id'] == job_id]:
+                return j['state'].upper() 
+
+            for j in [q for q in self.done if q['job_id'] == job_id]:
+                return 'DONE'
+
+        return 'NONE' 
+
+
 def update_jobs(flavor, shared, settings):
     h = Hub(flavor, shared)
     h.wait()
@@ -302,6 +315,7 @@ class Hub:
 
             time.sleep(self.delay)
 
+
 def get_address():
     default = False
     if _var in os.environ:
@@ -359,14 +373,26 @@ def serve():
 
             elif isinstance(msg, list) and msg[0] == 'wait':
                 try:
-                    ids, host, pid = msg[1:] 
+                    attrib, values, host, pid = msg[1:] 
                 except Exception as e:
-                    ids, host, pid = [[], '', 0] 
+                    attrib, values, host, pid = [[], 'job_id', '', 0] 
                
-                if shared.wait_for(ids):
+                if shared.wait_for(values, attrib=attrib):
                     conn.send("done")
 
                 conn.close() 
+                break
+
+            elif isinstance(msg, list) and msg[0] == 'status':
+                try:
+                    ids, host, pid = msg[1:]
+                except Exception as e:
+                    ids, host, pid = [[], '', 0]
+
+                status = [shared.status(i,sched) for i in ids]
+                conn.send(status)
+
+                conn.close()
                 break
 
             elif isinstance(msg, dict):
@@ -404,9 +430,12 @@ def submit(job, params={}):
 
 def shutdown():
     address, default = get_address() 
-    conn = Client(address, authkey=_password)
-    conn.send('shutdown')
-    conn.close()
+    try:
+        conn = Client(address, authkey=_password)
+        conn.send('shutdown')
+        conn.close()
+    except Exception as e:
+        print(str(e))
 
 def bins(num):
     address, default = get_address() 
@@ -421,21 +450,42 @@ def distribute():
     conn.close()
 
 
-def wait(ids):
+def wait(values, attrib='job_id'):
     address, default = get_address() 
     conn = Client(address, authkey=_password)
-    conn.send(['wait', ids, socket.gethostname(), str(os.getpid())])
+    conn.send(['wait', attrib, values, socket.gethostname(), str(os.getpid())])
     while conn.recv() != "done":
         print("test") # To fix
 
     conn.close()
 
+def status(ids):
+    address, default = get_address() 
+    conn = Client(address, authkey=_password)
+    conn.send(['status', ids, socket.gethostname(), str(os.getpid())])
+    status = conn.recv()
+    conn.close()
+
+    return status
+
+
+
+SETTINGS_VAR = "PP";
+
+def settings_var():
+    return SETTINGS_VAR;
+
+def settings():
+    if SETTINGS_VAR in os.environ:
+        return json.loads(os.environ[SETTINGS_VAR])
+
+    return {}
 
 def init_scheduler():
     name = 'localhost'
     settings = {}
-    if 'PP' in os.environ:
-        info = os.environ['PP']
+    if SETTINGS_VAR in os.environ:
+        info = os.environ[SETTINGS_VAR]
         try:
             settings = json.loads(info)
             if 'sched' in settings:

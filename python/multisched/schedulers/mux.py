@@ -2,6 +2,7 @@ import base
 import os
 import subprocess
 import json
+import sys
 sys.dont_write_bytecode = True
 
 import schedulers.localhost
@@ -51,8 +52,13 @@ class Scheduler(schedulers.localhost.Scheduler):
             new_cmd += ['--timeout', job['timeout']]
         if 'tag' in job:
             new_cmd += ['--tag', job['tag']]
+        if 'mem' in job:
+            new_cmd += ['--mem', job['mem']]
 
-        new_cmd = ['mux-farm'] + cmd
+        new_cmd += cmd
+
+        self.debug_msg("CMD {}".format(str(new_cmd)))
+
         p = subprocess.Popen(new_cmd,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,
@@ -87,7 +93,7 @@ class Scheduler(schedulers.localhost.Scheduler):
             else:
                 return s.upper()
 
-        return "CORRUPT"
+        return "GONE"
 
     def header(self, info=None):
         return "Running on mux-farm"

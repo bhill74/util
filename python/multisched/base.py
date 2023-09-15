@@ -23,7 +23,9 @@ class Base:
         if isinstance(cmd, str):
             return cmd
 
-        return " ".join([shlex.quote(c) for c in cmd])
+        # TODO: Quote arguments that need it.
+        return " ".join(cmd)
+        #return " ".join([shlex.quote(c) for c in cmd])
 
     def setenv(self, name, value, env=None):
         return 'export {}={}'.format(name, value)

@@ -2,10 +2,18 @@
 
 import os
 import sys
+import argparse
 sys.dont_write_bytecode = True
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'multisched'))
 import manager
 
-manager.wait(sys.argv[2:])
+my_parser = argparse.ArgumentParser(description = "Wait for specific jobs to complete in the MultiScheduler.")
+
+# Add the arguments
+my_parser.add_argument("--attrib", dest="attrib", type=str, default='job_id', help="Attribute to look for in the jobs")
+
+args = my_parser.parse_known_args()
+
+manager.wait(args[-1], attrib=args[0].attrib)
