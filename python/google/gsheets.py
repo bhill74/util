@@ -61,10 +61,15 @@ def cell_range(start, end=None, sheet=None):
 
 def cell_decomp(cell):
     if isinstance(cell, str):
-        c = re.compile(r'\d+').split(cell)[0]
-        v = cell[len(c):]
+        sh = None
+        cr = cell
+        if SHEET_DELIM in cell:
+            sh, cr = cell.split(SHEET_DELIM)
+
+        c = re.compile(r'\d+').split(cr)[0]
+        v = cr[len(c):]
         r = int(v) if len(v) else -1
-        return c, r
+        return sh, c, r
 
     if isinstance(cell, tuple):
         return cell[0], int(cell[1])
@@ -102,8 +107,39 @@ def shift_column(column, offset):
     return index_to_column(column_to_index(column) + offset)
 
 
+def shift_cell(crange, column_offset=0, row_offset=0):
+    if column_offset == 0 and row_offset == 0:
+        return crange
+
+    sh, c, r = cell_decomp(crange)
+    ci = column_to_index(c)
+    if column_offset < 0 and abs(column_offset) > ci:
+        sys.stderr.write("Shift is too large\n")
+        ci = 0
+    else:
+        ci += column_offset
+
+    if row_offset < 0 and abs(row_offset) > r:
+        sys.stderr.write("Row shift is too great\n")
+        r = 1
+    else:
+        r += row_offset
+
+    c = index_to_column(ci)
+    return cell_range("{}{}".format(c, r), sheet=sh)
+
+
+def shift_range(cell_range, column_offset=0, row_offset=0):
+    if SHEET_CELL_DELIM in cell_range:
+        start, end = cell_range.split(SHEET_CELL_DELIM)
+        start = shift_cell(start, column_offset, row_offset)
+        end = shift_cell(end, column_offset, row_offset)
+        return SHEET_CELL_DELIM.join([start, end])
+
+    return shift_cell(cell_range, column_offset, row_offset)
+
 def cell_to_index(address, offset=0):
-    c, r = cell_decomp(address)
+    sh, c, r = cell_decomp(address)
     i = column_to_index(c) + offset
     if r > -1:
         r += offset - 1

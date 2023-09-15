@@ -18,10 +18,11 @@ class GSheetMethods(unittest.TestCase):
         self.assertEqual(gsheets.cell_range("C9", "E17", "Sheet"), "Sheet!C9:E17")
 
     def test_cell_decomp(self):
-        self.assertEqual(gsheets.cell_decomp("A2"), ("A", 2))
-        self.assertEqual(gsheets.cell_decomp("B6"), ("B", 6))
-        self.assertEqual(gsheets.cell_decomp("C9"), ("C", 9))
-        self.assertEqual(gsheets.cell_decomp("D"), ("D", -1))
+        self.assertEqual(gsheets.cell_decomp("A2"), (None, "A", 2))
+        self.assertEqual(gsheets.cell_decomp("B6"), (None, "B", 6))
+        self.assertEqual(gsheets.cell_decomp("C9"), (None, "C", 9))
+        self.assertEqual(gsheets.cell_decomp("D"), (None, "D", -1))
+        self.assertEqual(gsheets.cell_decomp("Test!D"), ("Test", "D", -1))
 
     def test_column_to_index(self):
         self.assertEqual(gsheets.column_to_index("A"), 0)
@@ -40,6 +41,22 @@ class GSheetMethods(unittest.TestCase):
         self.assertEqual(gsheets.shift_column("AB", 5), "AG")
         self.assertEqual(gsheets.shift_column("Y", 12), "AK")
         self.assertEqual(gsheets.shift_column("ABC", 46), "ACW")
+
+    def test_shift_cell(self):
+        self.assertEqual(gsheets.shift_cell("AB6", 5), "AG6")
+        self.assertEqual(gsheets.shift_cell("Y34", 12), "AK34")
+        self.assertEqual(gsheets.shift_cell("ABC23", 46, 22), "ACW45")
+        self.assertEqual(gsheets.shift_cell("Test!FF12", 3, 4), "Test!FI16")
+        self.assertEqual(gsheets.shift_cell("Test!g2", 2, 2), "Test!I4")
+
+    def test_shift_range(self):
+        self.assertEqual(gsheets.shift_range("AB6", 5), "AG6")
+        self.assertEqual(gsheets.shift_range("Y34", 12), "AK34")
+        self.assertEqual(gsheets.shift_range("ABC23", 46, 22), "ACW45")
+        self.assertEqual(gsheets.shift_range("Test!FF12", 3, 4), "Test!FI16")
+        self.assertEqual(gsheets.shift_range("BC2:TT3", 4, 2), "BG4:TX5")
+        self.assertEqual(gsheets.shift_range("Test!F4:G7", 3, 4), "Test!I8:J11")
+        self.assertEqual(gsheets.shift_range("b2:t3", 4, 2), "F4:X5")
 
     def test_cell_to_index(self):
         self.assertEqual(gsheets.cell_to_index("A2"), (0, 1))
