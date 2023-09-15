@@ -2,10 +2,9 @@ import sys
 sys.dont_write_bytecode = True
 
 
-
-
 def bins(value):
     return
+
 
 def distribute():
     return

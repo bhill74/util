@@ -5,7 +5,7 @@ BASE=$(cd $(dirname $BASH_SOURCE) && pwd)
 
 args=()
 method=normal
-gdb_cmds=(-ex "set print object on" -ex "skip file util/CountedPtr.h")
+gdb_cmds=(-command ${DSIM_HOME}/gdb/init)
 valgrind_mem_opts=("-v" "--leak-check=full" \
 	       "--trace-children=yes" \
 	       #"--trace-children-skip=*" \
@@ -27,21 +27,41 @@ function memusage_exec()
     "${@}" &
     local pid=$!
 
-    echo "Time,Memory(kB)" | tee memusage.txt
+    echo "Time,PID-Memory(kB)" | tee memusage.txt
     while true
     do
+        found=0
         n=$(now)
-        mem=$(pmap -x $pid | grep total | awk '{print $3}')
-        if [ -z "$mem" ]
+        mems=()
+        for ppid in $(pstree -pa $pid | cut -f2 -d, | awk '{print $1}')
+        do
+            if [ -z "$ppid" ]
+            then
+                continue
+            fi
+
+            mem=$(pmap -x $ppid | grep total | awk '{print $3}')
+            if [ -z "$mem" ]
+            then
+                continue
+            fi
+     
+            found=1 
+            mems+=("$ppid-$mem")
+        done
+
+        if [[ $found -eq 0 ]]
         then
             break
         fi
-       
+
         d=$(perl -E "say $n - $ref")
-        echo $(printf "%0.3f" $d),$mem | tee -a memusage.txt
+        echo $(printf "%0.3f" $d),${mems[@]} | tee -a memusage.txt
         sleep $memusage_interval 
     done
     wait
+
+    cat memusage.txt | ${BASE}/memusage > memusage.csv
 }
 
 cmd=${NAME}

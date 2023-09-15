@@ -4,6 +4,9 @@ import time
 import sys
 sys.dont_write_bytecode = True
 
+import atexit
+
+
 SERVE_PID = -1
 
 def startup():
@@ -15,6 +18,7 @@ def startup():
         exit()
     else:
         time.sleep(1)
+        atexit.register(shutdown)
 
 def settings():
     return manager.settings()
@@ -36,6 +40,9 @@ def distribute():
     manager.distribute()
 
 def shutdown():
+    if SERVE_PID == 0:
+        return
+
     manager.shutdown() 
     os.wait()
 
