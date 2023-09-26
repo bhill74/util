@@ -7,5 +7,5 @@ initialize $HOME/util/multisched
 install_file $HOME/util/multisched runner
 
 initialize $HOME/lib/multisched
-install_file $HOME/lib/multisched schedi.sh
+install_file $HOME/lib/multisched multisched.bash 
 install_file $HOME/lib/multisched settings.sh

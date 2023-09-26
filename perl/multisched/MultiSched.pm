@@ -2,10 +2,12 @@
 use strict;
 use warnings;
 
+package MultiSched;
+
 use File::Spec;
 my $SERVE_PID = -1;
 
-sub sched_startup() {
+sub startup() {
     my ($vol, $path, $file) = File::Spec->splitpath(__FILE__);
     $path = File::Spec->rel2abs($path);
     $path = File::Spec->catfile($path, '..', 'utils');
@@ -20,30 +22,30 @@ sub sched_startup() {
         exit();
     } else {
         sleep(1);
-        END { sched_shutdown(); }
+        END { mshutdown(); }
     }
 }
 
-sub sched_set_param() {
+sub set_param() {
     my ($key, $value) = @_;
     $ENV{PP} = `sched_set_param $key $value`;
 }
 
-sub sched_remove_param() {
+sub remove_param() {
     my ($key) = @_;
     $ENV{PP} = `sched_remove_param $key`;
 }
 
-sub sched_bins() {
+sub bins() {
     my ($num) = @_;
     system("sched_bins $num");
 }
 
-sub sched_distribute() {
+sub distribute() {
     system('sched_distribute');
 }
 
-sub sched_shutdown() {
+sub mshutdown() {
     # For some reason the callback is called twice from END, this check distinguishes it.
     return if ($SERVE_PID == 0);
     system('sched_shutdown');
@@ -51,25 +53,25 @@ sub sched_shutdown() {
     $SERVE_PID = 0;
 }
 
-sub sched_submit() {
+sub submit() {
     my $cmd = join(' ', @_);
     my $id = `sched_submit $cmd`;
     chomp $id;
     return $id;
 }
 
-sub sched_wait() {
+sub wait() {
     my $ids = join(' ', @_);
     system("sched_wait $ids");
 }
 
-sub sched_wait_attrib() {
+sub wait_attrib() {
     my $attrib = shift;
     my $values = join(' ', @_);
     system("sched_wait --attrib $attrib $values");
 }
 
-sub sched_status() {
+sub status() {
     my $ids = join(' ', @_);
     my $status = `sched_status $ids`;
     chomp $status;

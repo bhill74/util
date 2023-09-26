@@ -4,4 +4,4 @@ BASE="../../"
 source $BASE/functions
 
 initialize $HOME/lib/multisched
-install_file $HOME/lib/multisched schedi.pl
+install_file $HOME/lib/multisched MultiSched.pm 
