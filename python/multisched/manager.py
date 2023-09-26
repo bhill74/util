@@ -479,7 +479,7 @@ def status(ids):
 
 
 
-SETTINGS_VAR = "PP";
+SETTINGS_VAR = "MULTISCHEDCONFIG";
 
 def settings_var():
     return SETTINGS_VAR;

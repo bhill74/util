@@ -28,12 +28,12 @@ sub startup() {
 
 sub set_param() {
     my ($key, $value) = @_;
-    $ENV{PP} = `sched_set_param $key $value`;
+    $ENV{MULTISCHEDCONFIG} = `sched_set_param $key $value`;
 }
 
 sub remove_param() {
     my ($key) = @_;
-    $ENV{PP} = `sched_remove_param $key`;
+    $ENV{MULTISCHEDCONFIG} = `sched_remove_param $key`;
 }
 
 sub bins() {
