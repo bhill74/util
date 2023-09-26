@@ -17,7 +17,7 @@ function _sched_shutdown() {
 }
 
 function sched_startup() {
-    export SCHED_PORT=$(sched_port)
+    export MULTISCHED_PORT=$(sched_port)
     sched_serve &
     SERVER_PID=$!
     sleep 1

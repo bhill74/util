@@ -14,8 +14,8 @@ sub startup() {
     my $d = $^O eq 'win32' ? ";" : ":";
     my $PATH = join($d, $path, File::Spec->path());
     $ENV{PATH} = $PATH;
-    $ENV{SCHED_PORT} = `sched_port`;
-    chomp $ENV{SCHED_PORT};
+    $ENV{MULTISCHED_PORT} = `sched_port`;
+    chomp $ENV{MULTISCHED_PORT};
     $SERVE_PID = fork;
     if ($SERVE_PID == 0) {
         system('sched_serve');

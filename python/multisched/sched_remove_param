@@ -2,9 +2,9 @@
 
 import json
 import sys
-import schedi
+import multisched
 
-settings = schedi.settings()
+settings = multisched.settings()
 del settings[sys.argv[1]]
 print(json.dumps(settings))
 

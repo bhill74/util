@@ -11,7 +11,7 @@ SERVE_PID = -1
 
 def startup():
     address, default = manager.get_address()
-    os.environ['SCHED_PORT'] = str(address[1])
+    os.environ['MULTISCHED_PORT'] = str(address[1])
     pid = os.fork()
     if pid == 0:
         manager.serve()

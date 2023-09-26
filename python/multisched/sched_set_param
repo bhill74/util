@@ -2,9 +2,9 @@
 
 import json
 import sys
-import schedi
+import multisched
 
-settings = schedi.settings()
+settings = multisched.settings()
 value = sys.argv[2]
 try:
     value = json.loads(value)

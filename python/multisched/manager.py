@@ -17,7 +17,7 @@ sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'multisched'))
 
 _host = 'localhost'
 _password = b'Secret Password'
-_var = "SCHED_PORT"
+_var = "MULTISCHED_PORT"
 _undef = "undefined port"
 
 
@@ -90,7 +90,7 @@ class SharedJobs:
                 #print("bins ", [len(b) for b in self.bins])
                 return
 
-            job['state'] = 'queued'
+            job['state'] = base.State.QUEUED 
             self.queue.append(job)
 
     def num_queued(self):
