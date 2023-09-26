@@ -72,9 +72,9 @@ def cell_decomp(cell):
         return sh, c, r
 
     if isinstance(cell, tuple):
-        return cell[0], int(cell[1])
+        return None, cell[0], int(cell[1])
 
-    return "", 0
+    return None, "", 0
 
 
 def column_to_index(column):
