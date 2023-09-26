@@ -3,12 +3,13 @@
 import sys
 import getopt
 import os
+import gsheets
 
 try:
     opts, other = \
         getopt.getopt(sys.argv[1:],
                 "hvoc:i:u:d:q:k",
-                ("help", "version", "open", "cell=", "input=", "delimiter=", "quote=", "keep", "sheet", "spreadsheet", "update="))
+                ("help", "version", "open", "cell=", "input=", "delimiter=", "quote=", "keep", "sheet=", "spreadsheet=", "update="))
 except getopt.GetoptError as err:
     print(str(err))
     sys.exit(2)
@@ -41,6 +42,8 @@ cell = "A1"
 update = False
 keep = False
 sheet = None
+gid = None
+delim = ','
 for o, a in opts:
     if o in ('-h', '--help'):
         usage()
@@ -62,5 +65,24 @@ for o, a in opts:
         keep = True
 
     if o in ('-s', '--sheet'):
-        sheet = True
+        sheet = a
+    
+    if o in ('-d', '--delimiter'):
+        delim = a
 
+    if o in ('-S', '--spreadsheet'):
+        gid = a
+
+spreadsheet = gsheets.GSpreadsheet(gid, application="tosheets")
+
+def toNum(d):
+    return float(d) if d.isnumeric() else d
+def toNumRow(data):
+    return [toNum(d) for d in data]
+
+insrc = os.open(source, "r") if source else sys.stdin
+data = [s.split(delim) for s in insrc.read().split("\n")]
+data = [toNumRow(d) for d in data]
+
+crange = gsheets.cell_range(cell, sheet=sheet)
+spreadsheet.update(data, crange)
