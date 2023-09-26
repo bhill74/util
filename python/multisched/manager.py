@@ -9,6 +9,8 @@ import socket
 from multiprocessing.connection import Listener, Client
 from multiprocessing import Process, Manager
 sys.dont_write_bytecode = True
+import base
+
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'multisched'))
@@ -42,13 +44,14 @@ class SharedJobs:
     # Active Jobs
     def add_job(self, job):
         with self.lock:
-            job['state'] = 'active'
-            self.jobs.append(job)
+            if 'exit_code' in job:
+                self.done.append(job)
+            else:
+                self.jobs.append(job)
 
-    def complete_job(self, i):
+    def complete_job(self, i, job):
         with self.lock:
-            job = self.jobs.pop(i)
-            job['state'] = 'done'
+            self.jobs.pop(i)
             self.done.append(job)
 
     def num_jobs(self):
@@ -207,15 +210,15 @@ class SharedJobs:
     def status(self, job_id, sched):
         with self.lock:
             for j in [j for j in self.jobs if j['job_id'] == job_id]:
-                return sched._query_job(j)
+                return sched.query(j).name
 
             for j in [q for q in self.queue if q['job_id'] == job_id]:
-                return j['state'].upper() 
+                return j['state'].name
 
             for j in [q for q in self.done if q['job_id'] == job_id]:
-                return 'DONE'
+                return j['state'].name
 
-        return 'NONE' 
+        return base.State.NAME.name 
 
 
 def update_jobs(flavor, shared, settings):
@@ -281,9 +284,10 @@ class Hub:
         while i < n_jobs:
             job = self.shared.get_job(i)
             r = self.flavor.query(job)
-            if r == "DONE" or r == "CORRUPT":
+            if r == base.State.PASS or r == base.State.FAIL or r == base.State.CORRUPT:
+                job['state'] = r
                 self.flavor._reclaim(job)
-                self.shared.complete_job(i)
+                self.shared.complete_job(i, job)
                 n_jobs -= 1
             else:
                 i += 1
@@ -306,10 +310,12 @@ class Hub:
     def wait_for(self, job):
         while True:
             r = self.flavor.query(job)
-            if r == "DONE":
+            if r == base.State.PASS or r == base.State.FAIL:
+                job['state'] = r
                 self.flavor._reclaim(job)
                 break
-            elif r == "CORRUPT":
+            elif r == base.State.CORRUPT:
+                job['state'] = r
                 self.flavor._reclaim(job)
                 break
 
@@ -462,6 +468,9 @@ def wait(values, attrib='job_id'):
 def status(ids):
     address, default = get_address() 
     conn = Client(address, authkey=_password)
+    if isinstance(ids, str):
+        ids = [ids]
+
     conn.send(['status', ids, socket.gethostname(), str(os.getpid())])
     status = conn.recv()
     conn.close()

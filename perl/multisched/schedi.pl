@@ -71,7 +71,9 @@ sub sched_wait_attrib() {
 
 sub sched_status() {
     my $ids = join(' ', @_);
-    return `sched_status $ids`;
+    my $status = `sched_status $ids`;
+    chomp $status;
+    return $status;
 }
 
 1;

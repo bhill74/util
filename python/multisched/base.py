@@ -3,6 +3,19 @@ import sys
 import shlex
 sys.dont_write_bytecode = True
 
+from enum import Enum
+
+class State(Enum):
+    PASS = 1
+    FAIL = 2
+    ACTIVE = 2
+    QUEUED = 4
+    CORRUPT = 5
+    RUN = 6
+    NONE = 7
+    GONE = 8
+    UNKNOWN = 9
+
 
 class Base:
     def __init__(self):
@@ -121,3 +134,24 @@ class Base:
 
     def describe(self):
         return "A Basic Scheduler"
+
+    def env(self, job):
+        return job['env'] if 'env' in job else {}
+
+    def pwd(self, job):
+        if 'pwd' in job:
+            return job['pwd']
+
+        env = self.env(job)
+        return env['PWD'] if 'PWD' in env else os.path.getcwd()
+
+    def open_file(self, name, mode='w', force=False, pwd=None):
+        if pwd and not name.startswith('/'):
+            name = os.path.join(pwd, name)
+
+        d = os.path.dirname(name)
+        if not os.path.exists(d) and force:
+           os.mkdir(d)
+
+        return open(name, mode)
+

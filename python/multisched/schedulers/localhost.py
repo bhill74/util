@@ -26,41 +26,47 @@ class Scheduler(base.Base):
         env = job['env'] if 'env' in job else None
         pwd = job['pwd'] if 'pwd' in job else os.getcwd() 
 
-        out_f = subprocess.STDOUT
-        if 'out' in job:
-            out_fn = job['out']
-            if not out_fn.startswith('/') and pwd:
-                out_fn = os.path.join(pwd, out_fn)
-            out_f = open(out_fn, "w")
-            out_f.write(self.header(info) + "\n")
-
-        if 'err' in job:
-            err_fn = job['err']
-            if not err_fn.startswith('/') and pwd:
-                err_fn = os.path.join(pwd, err_fn)
-            err_f = open(err_fn, "w")
-
         if isinstance(cmd, str):
             cmd = self.shell_wrap(cmd, env=env)
 
-        out_f.write("Command: {}\n".format(cmd))
+        if 'out' in job:
+            out_f = self.open_file(job['out'], "w", force=True, pwd=pwd)
+            out_f.write(self.header(info) + "\n")
+            out_f.write("Command: {}\n".format(cmd))
+            out_f.close()
+            env['MULTISCHED_LOG'] = job['out']
+
+        if 'err' in job:
+            err_f = self.open_file(job['err'], "w", force=True, pwd=pwd)
+            env['MULTISCHED_ERR'] = job['err']
+
+        job['exit_file'] = os.path.join(pwd, job['job_id']+'.code')
+        env['MULTISCHED_CODE'] = job['exit_file'] 
 
         self.debug_msg("CMD {}".format(str(cmd)))
 
         try:
-            p = subprocess.Popen(cmd,
-                                 stdout=out_f,
-                                 stderr=err_f,
-                                 stdin=subprocess.DEVNULL,
+            p = subprocess.Popen(['runner'] + cmd,
+                                 stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL,
                                  env=env, cwd=pwd)
             job['pid'] = p.pid
+            job['state'] = 'active'
             return job
+        except FileNotFoundError as e:
+            job['exit_code'] = 127
+            job['state'] = 'fail'
+            err_f.write(str(e))
+            err_f.close()
+            out_f.close()
+            return job
+
         except Exception as e:
             err_f.write(str(e))
             err_f.close()
             out_f.close()
 
-        return None
+        return job 
 
     def _submit_job(self, job):
         if 'cmd' not in job:
@@ -70,26 +76,31 @@ class Scheduler(base.Base):
 
     def _query_job(self, job):
         if 'pid' not in job:
-            return "CORRUPT"
+            return base.State.CORRUPT
 
         pid = job['pid']
         pid_str = str(pid)
         try:
-            t = os.kill(pid, 0)
-        except OSError:
-            return "DONE"
+            os.kill(pid, 0)
+        except OSError as e:
+            return base.State.PASS
 
         signal.alarm(2)
         try:
-            os.waitpid(pid, 0)
+            r = os.waitpid(pid, 0)
+            exit_file = self.open_file(job['exit_file'], 'r')
+            job['exit_code'] = int(exit_file.read())
+            exit_file.close()
+            os.remove(job['exit_file'])
+            del job['exit_file']
             signal.alarm(0)
-            return "DONE"
+            return base.State.PASS if job['exit_code'] == 0 else base.State.FAIL
         except Exception as e:
             self.debug_msg(str(e))
 
         signal.alarm(0)
 
-        return "RUN"
+        return base.State.RUN 
 
     def absorb(self, settings):
         if not base.Base.absorb(self, settings):

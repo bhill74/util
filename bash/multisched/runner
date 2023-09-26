@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Determine the path to the log file
+log=${MULTISCHED_OUT:-out.log}
+
+# Determine the path to the error file (same as log as default)
+err=${MULTISCHED_ERR:-$(echo $log | sed 's|.log$|.err|')}
+if [[ $err == $log ]]
+then
+    $err=$err.err
+fi
+
+# Determine the path to the exit code file (if needed)
+code=${MULTISCHED_CODE:-$(echo $log | sed 's|.log$|.code|')}
+if [[ $code == $log ]]
+then
+    $code=$code.code
+fi
+
+if [[ ${#} -eq 0 ]]
+then
+    exit
+fi
+
+"${@}" 2>>$err | tee -a $log
+c=${PIPESTATUS[0]}
+perl -pi -e "s|$0|$SHELL|g;" $err
+if [ ! -z "$code" ]
+then
+    echo $c > $code
+fi
+
+exit $c

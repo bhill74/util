@@ -12,11 +12,13 @@ SERVE_PID = -1
 def startup():
     address, default = manager.get_address()
     os.environ['SCHED_PORT'] = str(address[1])
-    SERVE_PID = os.fork()
-    if SERVE_PID == 0:
+    pid = os.fork()
+    if pid == 0:
         manager.serve()
         exit()
     else:
+        global SERVE_PID
+        SERVE_PID = pid
         time.sleep(1)
         atexit.register(shutdown)
 
@@ -40,11 +42,11 @@ def distribute():
     manager.distribute()
 
 def shutdown():
-    if SERVE_PID == 0:
+    if SERVE_PID <= 0:
         return
 
     manager.shutdown() 
-    os.wait()
+    os.waitpid(SERVE_PID, os.WNOHANG)
 
 def submit(cmd, params={}):
     return manager.submit(cmd, params) 
@@ -54,3 +56,6 @@ def wait(ids=None):
         ids = [ids]
 
     manager.wait(ids)
+
+def status(jid):
+    return manager.status(jid)

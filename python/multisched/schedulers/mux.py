@@ -29,9 +29,11 @@ class Scheduler(schedulers.localhost.Scheduler):
 
     def _submit_job(self, job):
         post = []
+        pwd = self.pwd(job)
+
         if 'out' in job:
             post += ['1>>', job['out']]
-            fh = open(job['out'], "w")
+            fh = self.open_file(job['out'], "w", True, pwd=pwd)
             fh.write(self.header() + "\n");
             fh.write("Command: {}\n".format(job['cmd']))
             fh.close()
@@ -66,7 +68,7 @@ class Scheduler(schedulers.localhost.Scheduler):
         sout, serr = p.communicate()
         if serr:
             if 'err' in job:
-                f = open(job['err'], 'w')
+                f = self.open_file(job['err'], 'w', True, pwd=pwd)
                 f.write(serr)
                 f.close()
 
@@ -85,15 +87,26 @@ class Scheduler(schedulers.localhost.Scheduler):
         sout, serr = p.communicate()
         if sout:
             j = json.loads(sout)
-            s = j[0]['state']
-            if s == 'done':
-                return "DONE"
-            elif s == 'run':
-                return "RUN"
-            else:
-                return s.upper()
+            info = j[0]
+            s = j[0]['state'].upper()
+            if 'status' in j[0]:
+                info = info['status']
+                if 'done' in j[0]['status']:
+                    info = info['done']
+                    if 'user_return_code' in info:
+                        job['exit_code'] = info['user_return_code']
+                        s = info['final_status'].upper()
 
-        return "GONE"
+            if s == 'PULL' or s == 'ALLOC':
+               return base.State.RUN                   
+
+            try:
+                return base.State[s]
+            except Exception as e:
+                self.debug_msg(str(e))
+                return base.State.UNKNOWN
+
+        return base.State.GONE 
 
     def header(self, info=None):
         return "Running on mux-farm"
