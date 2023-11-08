@@ -337,6 +337,7 @@ class GSpreadsheet(GItem):
         res = self._batchUpdate(r)
 
     def update(self, values, rangeName="A1"):
+        sheetName, col, row = cell_decomp(rangeName) 
         try:
             self.get_spreadsheets().values().update(
                 spreadsheetId=self.gid,
