@@ -311,7 +311,7 @@ class GSpreadsheet(GItem):
         
         return info
     
-    def addSheet(self, sheetName, rows=None, columns=None, colour=None):
+    def addSheet(self, sheetName, rows=None, columns=None, colour=None, index=-1):
         info = self.getSheetInfo(sheetName)
         if info:
             return False
@@ -326,6 +326,9 @@ class GSpreadsheet(GItem):
                 r['addSheet']['properties']['gridProperties']['columnCount'] = columns
         if colour:
             r['addSheet']['properties']['tabColor'] = to_colour(colour) 
+
+        if index >= 0:
+            r['addSheet']['properties']['index'] = index; 
 
         return self._batchUpdate(r)
 
