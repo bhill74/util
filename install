@@ -8,6 +8,10 @@ HOMEWWW=$HOME/public_html
 
 BASE=`pwd`
 
+# Make sure the OS utilities are found first.
+# (A Windows workaround)
+PATH=/usr/bin:$PATH
+
 source functions
 
 # OLD directories.
