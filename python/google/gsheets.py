@@ -67,7 +67,7 @@ def cell_decomp(cell):
             sh, cr = cell.split(SHEET_DELIM)
 
         c = re.compile(r'\d+').split(cr)[0]
-        v = cr[len(c):]
+        v = cr[len(c):].split(SHEET_CELL_DELIM)[0]
         r = int(v) if len(v) else -1
         return sh, c, r
 
@@ -168,6 +168,7 @@ class GSheetBase(gbase.GoogleAPI):
     def __init__(self, scope, application="sheets",
                  credentials=None, service=None,
                  client_file=None,
+                 credential_file=None,
                  credential_dir=None):
         if not client_file:
             client_file = \
@@ -353,6 +354,40 @@ class GSpreadsheet(GItem):
 
         return False
 
+    def updateByValue(self, key, values, rangeName="A1", note=None):
+        sheetName, col, row = cell_decomp(rangeName)
+        cells = self.retrieve(rangeName)
+        num_rows = len(cells)
+        col_index = column_to_index(col)
+        insert_col = col_index
+        insert_row = num_rows
+        if values and not isinstance(values, list):
+            values = list(values)
+
+        data = [key]
+        if values:
+            values = [str(v) for v in values]
+            data += values
+
+        for i in range(num_rows):
+            if cells[i][0] == key:
+                insert_row = i
+                data = values
+                insert_col = col_index + 1
+                break
+
+        crange = cell_range("{}{}".format(
+            index_to_column(insert_col), row + insert_row), sheet=sheetName)
+        if values:
+            self.update([data], crange)
+        else:
+            self.update([3*['']], crange)
+
+        if note:
+            crange = cell_range("{}{}".format(
+                index_to_column(col_index+1), row + insert_row), sheet=sheetName)
+            self.setNote(note, crange)
+
     def append(self, values, rangeName="A1"):
         try:
             self.get_spreadsheets().values().append(
@@ -420,4 +455,5 @@ class GSpreadsheet(GItem):
 
     def toFile(self):
         return gdrive.GFile(self.gid, self.name,
-                            application=self.application)
+                            application=self.application,
+                            credentials=self.credentials)

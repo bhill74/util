@@ -214,7 +214,7 @@ class GDriveBase(gbase.GoogleAPI):
             'role': role,
             'domain': domain
         }
-        r = self.service.permissions().create(fileId=self.gid,
+        r = self.get_service().permissions().create(fileId=self.gid,
                                               body=permission,
                                               fields='id').execute()
  
