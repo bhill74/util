@@ -36,7 +36,7 @@ class BuildCommand(recipes.GroupCommand):
         recipes.GroupCommand.__init__(self, label, group)
 
     def update(self, value):
-        left, row = gsheets.cell_decomp(start)
+        sheet, left, row = gsheets.cell_decomp(start)
         right = gsheets.shift_column(left, 2)
         range_name = gsheets.cell_range(start, right, sheet=sheet_name)
         c = gsheet.retrieve(range_name, quiet=True)

@@ -453,7 +453,11 @@ class GSpreadsheet(GItem):
                 'https://{}/%s/edit#gid=0'.format(SHEET_URL_BASE) %
                 self.gid)
 
-    def toFile(self):
-        return gdrive.GFile(self.gid, self.name,
-                            application=self.application,
-                            credentials=self.credentials)
+    def toFile(self, client_file=None):
+        if client_file:
+            return gdrive.GFile(self.gid, self.name, application=application,
+                                client_file=client_file)
+        else:
+            return gdrive.GFile(self.gid, self.name,
+                                application=self.application,
+                                credentials=self.credentials)

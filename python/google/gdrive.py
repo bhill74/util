@@ -165,10 +165,11 @@ def transferMsg(gfile, name):
 
 class GDriveBase(gbase.GoogleAPI):
     def __init__(self, scope, application="drive",
-                 credentials=None, service=None):
-        client_file = \
-            pkg_resources.resource_filename(__name__, "drive_client_id.json")
-        client_file = os.getenv("GOOGLE_DRIVE_CLIENT_ID", client_file)
+                 client_file=None, credentials=None, service=None):
+        if not client_file:
+            client_file = \
+                pkg_resources.resource_filename(__name__, "drive_client_id.json")
+            client_file = os.getenv("GOOGLE_DRIVE_CLIENT_ID", client_file)
 
         scopes = ('.metadata.readonly', '.file', '')
         gbase.GoogleAPI.__init__(self, "drive",
@@ -221,7 +222,7 @@ class GDriveBase(gbase.GoogleAPI):
     def get_files(self):
         return self.get_service().files()
 
-    def infoById(self, gid, fields=[]):
+    def infoById(self, gid, fields=['*']):
         try:
             return self.get_files().get(fileId=gid,
                                         fields=",".join(fields)).execute()
@@ -304,6 +305,7 @@ class GDriveBase(gbase.GoogleAPI):
 class GItem(GDriveBase):
     def __init__(self, gid, name='',
                  application=None,
+                 client_file=None,
                  credentials=None,
                  service=None,
                  parent=None):
@@ -312,6 +314,7 @@ class GItem(GDriveBase):
         self.parents = [parent] if parent else []
         GDriveBase.__init__(self, "",
                             application=application,
+                            client_file=client_file,
                             credentials=credentials,
                             service=service)
 
@@ -397,11 +400,13 @@ class GItem(GDriveBase):
 class GFile(GItem):
     def __init__(self, gid, name,
                  application=None,
+                 client_file=None,
                  credentials=None,
                  service=None,
                  parent=None):
         GItem.__init__(self, gid, name=name,
                        application=application,
+                       client_file=client_file,
                        credentials=credentials,
                        service=service,
                        parent=parent)
@@ -568,11 +573,13 @@ class GFile(GItem):
 class GContainer(GItem):
     def __init__(self, gid, name,
                  application=None,
+                 client_file=None,
                  credentials=None,
                  service=None,
                  parent=None):
         GItem.__init__(self, gid, name=name,
                        application=application,
+                       client_file=client_file,
                        credentials=credentials,
                        service=service,
                        parent=parent)
@@ -757,9 +764,13 @@ class GContainer(GItem):
 
 class GShared(GContainer):
     def __init__(self,
-                 application=None, credentials=None, service=None):
+                 application=None,
+                 client_file=None,
+                 credentials=None,
+                 service=None):
         GContainer.__init__(self, 'sharedWithMe', name=SHARED_NAME,
                             application=application,
+                            client_file=client_file,
                             credentials=credentials,
                             service=service)
 
@@ -782,10 +793,11 @@ class GShared(GContainer):
 
 class GShortcut(GContainer):
     def __init__(self, gid, shortcutgid, name='', mimeType=None,
-                 application=None, credentials=None, service=None,
+                 application=None, client_file=None, credentials=None, service=None,
                  parent=None):
         GContainer.__init__(self, gid, name=name,
                             application=application,
+                            client_file=client_file,
                             credentials=credentials,
                             service=service,
                             parent=parent)
@@ -819,11 +831,13 @@ class GShortcut(GContainer):
 class GFolder(GContainer):
     def __init__(self, gid, name='',
                  application=None,
+                 client_file=None,
                  credentials=None,
                  service=None,
                  parent=None):
         GContainer.__init__(self, gid, name=name,
                             application=application,
+                            client_file=client_file,
                             credentials=credentials,
                             service=service,
                             parent=parent)

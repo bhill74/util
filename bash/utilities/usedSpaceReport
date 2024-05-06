@@ -43,7 +43,7 @@ function report
        else
            grep $filter
        fi | \
-       sort -n -k1 -r | \
+       sort -k1 -n -r | \
        head -$num | \
        while read line; do
            s=$(echo $line | awk '{print $1}')

@@ -4,8 +4,11 @@ import os
 import sys
 import glob
 import re
-from colorama import Fore, Back, Style
 import argparse
+
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
+from colorama import Fore, Back, Style
 
 my_parser = argparse.ArgumentParser(description = "Creates a summary report for the differences in tests between two runs.")
 my_parser.add_argument("-step", dest="step", choices=['2','3'], default=2, help="The tag for filtering 2/3 step results")

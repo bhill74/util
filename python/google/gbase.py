@@ -38,11 +38,6 @@ class GoogleAPI:
             home_dir = os.path.expanduser('~')
             self.credential_dir = os.path.join(home_dir, '.credentials')
 
-        #print("scopes: ", self.scopes)
-        #print("secret: ", self.secret)
-        #print("application: ", self.application)
-        #print("creds: ", self.credentials)
-        #print("creds_dir: ", self.credential_dir)
         self.service = service
         self.debug = os.getenv('GOOGLE_DEBUG', 'False') == 'True'
 
