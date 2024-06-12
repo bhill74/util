@@ -348,6 +348,26 @@ class GItem(GDriveBase):
                    for g in parents['parents']]
         return self.toFolders(results)
 
+    def setParent(self, folder):
+        ids = [f.gid for f in folder] if isinstance(folder, list) else [f.gid]
+        result = self.get_files().update(
+            fileId=self.gid,
+            addParents=",".join(ids),
+            fields='id, parents'
+        ).execute()
+        return True if result else False
+
+    def moveToParet(self, folder):
+        ids = [f.gid for f in folder] if isinstance(folder, list) else [f.gid]
+        parent_ids = [p.gid for p in self.getParents]
+        result = self.get_files().update(
+            fileId=self.gid,
+            addParents=",".join(ids),
+            removeParents=",".join(parent_ids),
+            fields='id, parents'
+        ).execute()
+        return True if result else False
+
     def remove(self):
         self.get_files().delete(fileId=self.gid).execute()
 
@@ -502,21 +522,21 @@ class GFile(GItem):
 
     def getDownloadUrl(self):
         links = self.infoById(self.gid, ['webContentLink'])
-        if 'webContentLink' in links:
+        if links and 'webContentLink' in links:
             return links['webContentLink']
 
         return None
 
     def getViewUrl(self):
         links = self.infoById(self.gid, ['webViewLink'])
-        if 'webViewLink' in links:
+        if links and 'webViewLink' in links:
             return links['webViewLink']
 
         return None
 
     def getMimeType(self):
         links = self.infoById(self.gid, ['mimeType'])
-        if 'mimeType' in links:
+        if links and 'mimeType' in links:
             return links['mimeType']
 
         return None
@@ -864,9 +884,10 @@ class GFolder(GContainer):
 
 
 class GDrive(GDriveBase):
-    def __init__(self, application=None):
+    def __init__(self, application=None, client_file=None):
         GDriveBase.__init__(self, ".metadata.readonly",
-                            application=application)
+                            application=application,
+                            client_file=client_file)
 
     def byId(self, fileId, param={}):
         service = self.get_service()

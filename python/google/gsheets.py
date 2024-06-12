@@ -50,7 +50,10 @@ def cell_addr(cell):
 def cell_range(start, end=None, sheet=None):
     addr = ""
     if sheet:
-        addr = sheet + SHEET_DELIM
+        if sheet.isalnum() and not sheet.isnumeric():
+            addr = sheet + SHEET_DELIM
+        else:
+            addr = "'{}'{}".format(sheet, SHEET_DELIM)
 
     addr += cell_addr(start)
     if end:
@@ -65,6 +68,8 @@ def cell_decomp(cell):
         cr = cell
         if SHEET_DELIM in cell:
             sh, cr = cell.split(SHEET_DELIM)
+            if sh[0] == '\'' and sh[-1] == '\'':
+                sh = sh[1:-1]
 
         c = re.compile(r'\d+').split(cr)[0]
         v = cr[len(c):].split(SHEET_CELL_DELIM)[0]
@@ -75,6 +80,37 @@ def cell_decomp(cell):
         return None, cell[0], int(cell[1])
 
     return None, "", 0
+
+
+def _same_cell(a, b):
+    if a == b:
+        return True
+
+    if a.endswith(SHEET_DELIM+b):
+        return True
+
+    return False
+
+
+def range_decomp(crange):
+    if isinstance(crange, str):
+        if SHEET_CELL_DELIM in crange:
+            i = crange.split(SHEET_CELL_DELIM)
+            e = i[1]
+            if SHEET_DELIM in e:
+                e = e.split(SHEET_DELIM)[1]
+
+            return i[0], e, not _same_cell(i[0], e)
+
+        e = crange
+        if SHEET_DELIM in e:
+            e = e.split(SHEET_DELIM)[1]
+        return crange, e, not _same_cell(crange, e)
+
+    if isinstance(crange, tuple):
+        return crange[0], crange[1]
+
+    return None, None
 
 
 def column_to_index(column):
@@ -106,6 +142,110 @@ def index_to_column(index):
 def shift_column(column, offset):
     return index_to_column(column_to_index(column) + offset)
 
+def expand_range(crange, column_width=0, row_height=0):
+    start, stop, _ = range_decomp(crange)
+    if SHEET_DELIM in stop:
+        stop = stop.split(SHEET_DELIM)[1]
+
+    stop = shift_cell(stop, column_offset=column_width, row_offset=row_height)
+    if start == stop:
+        return start
+
+    return start + SHEET_CELL_DELIM + stop
+
+def get_from_range(crange, col=1, row=1, width=1, height=1):
+    start, stop, _ = range_decomp(crange)
+    if col >= 1 and row >= 1:
+        start = shift_cell(start, col-1, row-1)
+        return grow_range(start, r=width-1, b=height-1)
+    elif col >= 1 and row < 0:
+        start = shift_cell(start, col-1, 0)
+        sh, c, stopr = cell_decomp(stop)
+        stopr += row+1
+        sh, c, r = cell_decomp(start)
+        cell = cell_range(cell_addr((c, stopr)), sheet=sh)
+        return grow_range(cell, r=width-1, t=height-1)
+    elif col < 0 and row >= 1:
+        start = shift_cell(start, 0, row-1)
+        sh, stopc, r = cell_decomp(stop)
+        sh, c, r = cell_decomp(start)
+        cell = cell_range(cell_addr((stopc, r)), sheet=sh)
+        cell = shift_cell(cell, 1+col, 0)
+        return grow_range(cell, l=width-1, b=height-1)
+
+    # Both negative
+    stop = shift_cell(stop, col+1, row+1)
+    return grow_range(stop, l=width-1, t=height-1)
+
+def shift_range(crange, column_offset, row_offset=0):
+    start, stop, multiple = range_decomp(crange)
+    if not multiple:
+        return shift_cell(start, column_offset=column_offset, row_offset=row_offset)
+
+    start = shift_cell(start, column_offset=column_offset, row_offset=row_offset)
+    stop = shift_cell(stop, column_offset=column_offset, row_offset=row_offset)
+    return start + SHEET_CELL_DELIM + stop
+
+def isolate_range_by_column(crange, columns):
+    startc = stopc = columns
+    if SHEET_CELL_DELIM in columns:
+        startc, stopc = columns.split(SHEET_CELL_DELIM)
+        
+    start, stop, multiple = range_decomp(crange)
+    s, c, r = cell_decomp(start)
+    start = cell_range(cell_addr((startc, r)), sheet=s)
+    if not multiple:
+        return start
+
+    _, c, r = cell_decomp(stop)
+    stop = cell_addr((stopc, r))
+    if _same_cell(start, stop):
+        return start
+
+    return start + SHEET_CELL_DELIM + stop
+    
+def isolate_range_by_row(crange, rows):
+    startr = stopr = rows
+    if isinstance(rows, str) and SHEET_CELL_DELIM in rows:
+        startr, stopr = rowss.split(SHEET_CELL_DELIM)
+        
+    if isinstance(startr, str):
+        startr = int(startf)
+    if isinstance(stopr, str):
+        stopr = int(stopr)
+
+    start, stop, multiple = range_decomp(crange)
+    s, c, r = cell_decomp(start)
+    start = cell_range(cell_addr((c, startr)), sheet=s)
+    if not multiple:
+        return start
+
+    _, c, r = cell_decomp(stop)
+    stop = cell_addr((c, stopr))
+    if _same_cell(start, stop):
+        return start
+
+    return start + SHEET_CELL_DELIM + stop
+   
+def grow_range(crange, l=0, r=0, b=0, t=0, lrbt=0, lr=0, bt=0, lt=0, rb=0):
+    start, stop, _ = range_decomp(crange)
+    if l != 0 or t != 0 or lrbt != 0 or lr != 0 or bt != 0:
+        start = shift_cell(start, -l, -t)
+        start = shift_cell(start, -lt, -lt)
+        start = shift_cell(start, -lrbt, -lrbt)
+        start = shift_cell(start, -lr, -bt)
+
+    if r != 0 or b != 0 or lrbt != 0 or lr != 0 or bt != 0:
+        stop = shift_cell(stop, r, b)
+        stop = shift_cell(stop, rb, rb)
+        stop = shift_cell(stop, lrbt, lrbt)
+        stop = shift_cell(stop, lr, bt)
+
+    if _same_cell(start, stop):
+        return start
+
+    return start + SHEET_CELL_DELIM + stop
+
 
 def shift_cell(crange, column_offset=0, row_offset=0):
     if column_offset == 0 and row_offset == 0:
@@ -119,7 +259,7 @@ def shift_cell(crange, column_offset=0, row_offset=0):
     else:
         ci += column_offset
 
-    if row_offset < 0 and abs(row_offset) > r:
+    if row_offset < 0 and abs(row_offset) > (r-1):
         sys.stderr.write("Row shift is too great\n")
         r = 1
     else:
@@ -146,18 +286,46 @@ def cell_to_index(address, offset=0):
 
     return i, r
 
+def translate_cell_info(crange, data):
+    start, stop, _ = range_decomp(crange)
+    sh, c, r = cell_decomp(start)
+    start = cell_addr((c, r))
+
+    result = []
+    for r in range(len(data)):
+        row = data[r]
+        new_row = row.copy()
+        for c in range(len(row)):
+            if not isinstance(row[c], str):
+                continue
+
+            if not row[c].startswith('='):
+                continue
+
+            def translate(match):
+                coff = int(match[1], 10)
+                roff = int(match[2], 10)
+                return shift_cell(start, c + coff, r + roff)
+
+            new_row[c] = re.sub('\#\[(-?\d+),(-?\d+)\]', translate, row[c])
+
+        result += [new_row]
+
+    return result
+
 
 def range_to_info(cell_range):
     info = {'sheetId': 0 }
-    if SHEET_DELIM in cell_range:
-        info['sheetName'], cell_range = cell_range.split(SHEET_DELIM)
+    start, stop, multiple = range_decomp(cell_range)
+    sh, c, r = cell_decomp(start)
+    if sh:
+        info['sheetName'] = sh
+        start = cell_addr((c, r))
 
-    if SHEET_CELL_DELIM in cell_range:
-        start, end = cell_range.split(SHEET_CELL_DELIM)
-        info['startColumnIndex'], info['startRowIndex'] = cell_to_index(start)
-        info['endColumnIndex'], info['endRowIndex'] = cell_to_index(end, 1)
+    info['startColumnIndex'], info['startRowIndex'] = cell_to_index(start)
+    if multiple:
+        info['endColumnIndex'], info['endRowIndex'] = cell_to_index(stop, 1)
     else:
-        info['startColumnIndex'], info['startRowIndex'] = cell_to_index(cell_range)
         info['endColumnIndex'] = info['startColumnIndex'] + 1
         info['endRowIndex'] = info['startRowIndex'] + 1
 
@@ -292,6 +460,7 @@ class GSpreadsheet(GItem):
     def getSheetInfo(self, sheetId):
         info = self.info()
         if info and 'sheets' in info:
+            shts = [s['properties']['title'] for s in info['sheets']]
             sheets = [s for s in info['sheets'] if s['properties']['title'] == sheetId or s['properties']['sheetId'] == sheetId]
             return sheets[0] if len(sheets) else None
 
@@ -311,7 +480,7 @@ class GSpreadsheet(GItem):
             del info['sheetName']
         
         return info
-    
+   
     def addSheet(self, sheetName, rows=None, columns=None, colour=None, index=-1):
         info = self.getSheetInfo(sheetName)
         if info:
@@ -340,19 +509,23 @@ class GSpreadsheet(GItem):
                      'description': 'getting a lock'}}}]
         res = self._batchUpdate(r)
 
-    def update(self, values, rangeName="A1"):
-        sheetName, col, row = cell_decomp(rangeName) 
+    def update(self, values, rangeName="A1", input_option='RAW'):
+        if input_option == 'USER_ENTERED':
+            values = translate_cell_info(rangeName, values)
+
         try:
             self.get_spreadsheets().values().update(
                 spreadsheetId=self.gid,
                 range=rangeName,
-                valueInputOption='RAW',
+                valueInputOption=input_option,
                 body={'values': values}).execute()
-            return True
+            columns = max([len(r) for r in values])
+            result = grow_range(rangeName, b=len(values)-1, r=columns)
+            return True, result
         except Exception as e:
             print(e)
 
-        return False
+        return False, None
 
     def updateByValue(self, key, values, rangeName="A1", note=None):
         sheetName, col, row = cell_decomp(rangeName)
@@ -378,15 +551,18 @@ class GSpreadsheet(GItem):
 
         crange = cell_range("{}{}".format(
             index_to_column(insert_col), row + insert_row), sheet=sheetName)
+        result = None
         if values:
-            self.update([data], crange)
+            result = self.update([data], crange)
         else:
-            self.update([3*['']], crange)
+            result = self.update([3*['']], crange)
 
         if note:
             crange = cell_range("{}{}".format(
                 index_to_column(col_index+1), row + insert_row), sheet=sheetName)
             self.setNote(note, crange)
+
+        return result
 
     def append(self, values, rangeName="A1"):
         try:
@@ -453,7 +629,7 @@ class GSpreadsheet(GItem):
                 'https://{}/%s/edit#gid=0'.format(SHEET_URL_BASE) %
                 self.gid)
 
-    def toFile(self, client_file=None):
+    def toFile(self, client_file=None, application=None):
         if client_file:
             return gdrive.GFile(self.gid, self.name, application=application,
                                 client_file=client_file)
