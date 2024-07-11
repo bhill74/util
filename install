@@ -32,8 +32,10 @@ clear $HOME/media
 clear $HOMEWWW/php
 clear $HOMEWWW/js
 
-for dist in `find . -depth -name TMP -prune -o -name distfiles | grep -v TMP | perl sortpaths.pl`
+for dist in `/usr/bin/find . -depth -name TMP -prune -o -name distfiles | grep -v TMP | perl sortpaths.pl`
 do
+    echo next
+
     if [[ ! -z "$2" ]]
     then
         m=$(echo $dist | sed "s|/distfiles||")
@@ -51,4 +53,5 @@ do
     cd $directory
     ./distfiles
     cd $BASE
+    echo done
 done
