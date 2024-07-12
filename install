@@ -55,3 +55,5 @@ do
     cd $BASE
     echo done
 done
+
+echo "all done"
