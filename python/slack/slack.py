@@ -74,16 +74,28 @@ class ToSlack:
         return json.loads(res)
 
     def block(self, text, markdown=True):
-        return {"type": "mrkdwn" if markdown else "text", "text": text}
+        return {"type": "mrkdwn" if markdown else "text", "text": text.replace('_', '.') if markdown else text}
 
     def section(self, content, markdown=True):
         return {"type": "section", "text": self.block(content, markdown=markdown)}
 
-    def table(self, content, markdown=True):
-        result = {"type": "section", "fields": []}
-        for c in content:
-            result["fields"].append(self.block(c[0], markdown=markdown))
-            result["fields"].append(self.block(" ".join(c[1:]), markdown=markdown))
+    def table(self, content, markdown=True, delim=None):
+        b = 0
+        d = 5   # Break the content into 5-line chunks.
+        sep = " "
+        if delim:
+            sep = " " + delim + " "
+
+        result = []
+        while (b < len(content)):
+            fields = {"type": "section", "fields": []}
+            for i in range(b, min(len(content), b+d)):
+                c = content[i]
+                fields["fields"].append(self.block(c[0], markdown=markdown))
+                fields["fields"].append(self.block(sep.join(c[1:]), markdown=markdown))
+    
+            result.append(fields)
+            b += d;
 
         return result
 
@@ -138,7 +150,7 @@ class ToSlack:
         preview = preview if preview else self.preview
         if preview:
             print("URL", url)
-            print(json.dumps(data, indent=4))
+            print("PAYLOAD:{}".format(json.dumps(payload, indent=4)))
             return True
 
         res = requests.post(url, data=data)
