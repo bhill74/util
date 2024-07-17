@@ -457,6 +457,10 @@ class GSpreadsheet(GItem):
         info = self.info()
         return info['spreadsheetUrl']
 
+    def title(self):
+        info = self.info()
+        return info['properties']['title']
+
     def getSheetInfo(self, sheetId):
         info = self.info()
         if info and 'sheets' in info:
