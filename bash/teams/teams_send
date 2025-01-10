@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "Warning: slack_send has been replaced by toslack, please update your scripts"
+base=$(cd $(dirname $BASH_SOURCE) && pwd)
+${base}/toslack "${@}"

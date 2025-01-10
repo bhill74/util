@@ -1,0 +1,51 @@
+#!/bin/bash
+
+. ${HOME}/util/teams/settings.sh
+. ${HOME}/util/kramdown/settings.sh
+
+function usage() {
+    echo "Utility for translating kramdown markup text from STDIN and posting to a teams channel"
+    echo "Usage: $(basename $0) [-t <text>] [-h]"
+    cat << EOF
+
+Options:
+    -n/--name           The nickname of the channel to post this message to if 
+                        they are defined in the teams.cfg file.
+    -t/--text           The alternative text to use that will showup on desktop notifications.
+    -h                  Displays this menu.
+
+EOF
+}
+
+name=''
+text="Message"
+
+while [[ $# -gt 0 ]]
+do
+    key=$1
+    case $key in
+        -h)
+            usage
+            exit 1
+            ;;
+        -n|--name)
+            name=$2
+            shift
+            ;;
+        -t|--text)
+            text=$2
+            shift
+            ;;
+    esac
+    shift
+done
+
+url=$(teams_url -n ${name})
+content=$(cat -)
+body=$(echo -e "$content" | kramdown -o teams)
+payload=$(echo "$body" | teams_payload -t ${text})
+res=$(curl -s -H "Content-Type:application/json" -d "${payload}" $url)
+if [ "$res" != "1" ]; then
+    echo "ERROR $res"
+    echo $payload | python -m json.tool
+fi

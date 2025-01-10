@@ -985,6 +985,7 @@ class Pipelines(Project):
         if not token:
             token = self._trigger_token
 
+        print("TOKEN", token)
         return Project.launch(self, ref, params=params, token=token)
 
     def query(self, params={}, token=None):

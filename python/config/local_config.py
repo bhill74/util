@@ -1,6 +1,6 @@
 # import select, json, getopt, sys
 import os
-#import sys
+import sys
 
 # External modules
 #sys.path.insert(0, os.path.join(os.getenv('HOME'), 'lib', 'ext'))
@@ -8,13 +8,19 @@ from configparser import ConfigParser
 
 
 class LocalConfigParser(ConfigParser):
-    def __init__(self, name):
+    def __init__(self, name, path=None):
         ConfigParser.__init__(self, allow_no_value=True)
         dir_name = os.getcwd()
         home_dir = os.path.expanduser("~")
         use_home = False
         self._file = None
         self._name = name
+
+        if path:
+            file_name = path + '/' + name
+            if (os.path.exists(file_name)):
+                self.read(file_name)
+
         while True:
             file_name = dir_name + '/' + name
             if (os.path.exists(file_name)):

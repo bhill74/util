@@ -1,0 +1,36 @@
+#!/usr/bin/python3
+
+import select
+import json
+import getopt
+import sys
+from teams_config import TeamsConfig
+import teams
+
+if __name__ == "__main__":
+    try:
+        opts, args = getopt.getopt(
+                sys.argv[1:], "t:j",
+                ["text=", "json"])
+    except getopt.GetoptError as err:
+        print(err)
+        sys.exit(2)
+
+    text = ''
+    content = []
+
+    for o, a in opts:
+        if o in ("-t", "--text"):
+            text = a
+
+    content = [] 
+    if select.select([sys.stdin, ], [], [], 0.0)[0]:
+        for line in sys.stdin:
+            try:
+                content += json.loads(line)
+            except:
+                content.append(line)
+
+    to_teams = teams.ToTeams()
+    result = to_teams.payload(content, text=text)
+    print(json.dumps(result))

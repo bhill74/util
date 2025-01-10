@@ -1,5 +1,6 @@
 #!/usr/bin/python
-from local_config import LocalConfigParser
+
+from slack_config import SlackConfig
 import os
 import subprocess
 import json
@@ -22,33 +23,6 @@ class SlackIdentity:
 
     def __str__(self):
         return self.__rep__()
-
-
-class SlackConfig(LocalConfigParser):
-    def __init__(self):
-        LocalConfigParser.__init__(self, "slack.cfg")
-
-    def get_base(self, option, var):
-        if self.has_section('WebHook') and self.has_option('WebHook', option):
-            return self.get('WebHook', option).strip()
-
-        return os.getenv(var, '')
-
-    def client(self):
-        return self.get_base('client', 'SLACK_CLIENT')
-
-    def hook(self):
-        return self.get_base('hook', 'SLACK_HOOK')
-
-    def token(self):
-        return self.get_base('token', 'SLACK_HOOK_TOKEN')
-
-    def nickname(self, name):
-        if self.has_section('Nicknames') and self.has_option('Nicknames',
-                                                             name):
-            return self.get('Nicknames', name).strip()
-
-        return name
 
 
 class ToSlack:
@@ -74,7 +48,7 @@ class ToSlack:
         return json.loads(res)
 
     def block(self, text, markdown=True):
-        return {"type": "mrkdwn" if markdown else "text", "text": text.replace('_', '.') if markdown else text}
+        return {"type": "mrkdwn" if markdown else "text", "text": text}
 
     def section(self, content, markdown=True):
         return {"type": "section", "text": self.block(content, markdown=markdown)}

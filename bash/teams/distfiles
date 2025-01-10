@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/teams
+install_file $HOME/lib/teams include.sh 
+
+initialize $HOME/util/teams
+install_other $HOME/util/teams

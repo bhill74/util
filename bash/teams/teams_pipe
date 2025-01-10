@@ -1,0 +1,25 @@
+#!/bin/bash
+
+. ${HOME}/util/teams/settings.sh
+
+function usage() {
+    echo "Utility for translating text from STDIN and posting to a teams channel"
+    echo "Usage: $(basename $0) [-c <channel>] [-h]"
+    cat << EOF
+
+Options:
+    -n/--name           The nickname for the channel to post this message to
+                        if they are defined in the teams.cfg file.
+    -h                  Displays this menu.
+
+EOF
+}
+
+if [[ " ${@} " =~ " -h " ]]
+then
+    usage
+    exit 1
+fi
+
+msg=$(cat -)
+echo -e "~~~\n${msg}\n~~~\n\n(from user $USER)" | toteams -t "$msg" "${@}"
