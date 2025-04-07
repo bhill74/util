@@ -7,7 +7,7 @@ initialize $HOME/lib/google
 install_dir $HOME/lib/google 'g*.py'
 install_dir $HOME/lib/google '*.json'
 chmod a+r $HOME/lib/google/*.json
-pip3 install --target $HOME/lib/ext --upgrade oauth2client google_api_python_client setuptools
+pip3 install --target $HOME/lib/ext --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib setuptools
 
 initialize $HOME/util/google
 install_dir $HOME/util/google 'to*'

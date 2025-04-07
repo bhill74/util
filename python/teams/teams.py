@@ -6,6 +6,7 @@ import subprocess
 import json
 import requests
 import sys
+import re
 
 
 class TeamsIdentity:
@@ -63,6 +64,7 @@ class ToTeams:
                  'inlines': [{'type': 'TextRun', 'text': t} for t in text.split()]}
 
     def section(self, content, markdown=True):
+        content = re.sub(r'(https?://\S+)', '[\\1](\\1)', content)
         return {"type": "TextBlock", "text": content, "wrap": True }
 
     def table(self, content, markdown=True):
@@ -73,6 +75,7 @@ class ToTeams:
         while found:
             column = {'type': 'Column', 'items': []}
             first = False
+            found = False
             for row in content:
                 text = ''
                 if len(row) > index:
@@ -83,6 +86,7 @@ class ToTeams:
 
                 if first:
                     column['weight'] = 'Bolder'
+                    first = False
 
             if found:
                 columns.append(column)
@@ -92,7 +96,7 @@ class ToTeams:
 
             index += 1
 
-        result = {'type': 'ColumSet',
+        result = {'type': 'ColumnSet',
                   'columns': columns }
 
         return result

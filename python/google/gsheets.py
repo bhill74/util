@@ -11,8 +11,7 @@ import gdrive
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
-import httplib2
-from apiclient import discovery
+from googleapiclient.discovery import build
 
 SHEET_URL_BASE = "docs.google.com/spreadsheets/d/"
 SHEET_DELIM = "!"
@@ -307,7 +306,7 @@ def translate_cell_info(crange, data):
                 roff = int(match[2], 10)
                 return shift_cell(start, c + coff, r + roff)
 
-            new_row[c] = re.sub('\#\[(-?\d+),(-?\d+)\]', translate, row[c])
+            new_row[c] = re.sub(r'\#\[(-?\d+),(-?\d+)\]', translate, row[c])
 
         result += [new_row]
 
@@ -355,12 +354,7 @@ class GSheetBase(gbase.GoogleAPI):
 
     def get_service(self):
         if not self.service:
-            http = self.get_credentials().authorize(httplib2.Http())
-            discoveryUrl = ('https://sheets.googleapis.com/$discovery/rest?'
-                            'version=v4')
-            self.service = discovery.build(self.api, 'v4',
-                                           http=http,
-                                           discoveryServiceUrl=discoveryUrl)
+            self.service = build(self.api, 'v4', credentials=self.get_credentials())
 
         return self.service
 

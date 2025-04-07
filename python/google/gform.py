@@ -12,8 +12,7 @@ import gdrive
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
-import httplib2
-from apiclient import discovery
+from googleapiclient.discovery import build
 
 FORM_URL_BASE = "docs.google.com/forms/d/"
 
@@ -49,12 +48,7 @@ class GFormBase(gbase.GoogleAPI):
 
     def get_service(self):
         if not self.service:
-            http = self.get_credentials().authorize(httplib2.Http())
-            discoveryUrl = ('https://forms.googleapis.com/$discovery/rest?'
-                            'version=v1')
-            self.service = discovery.build(self.api, 'v1',
-                                           http=http,
-                                           discoveryServiceUrl=discoveryUrl)
+            self.service = build(self.api, 'v1', credentials=self.credentials())
 
         return self.service
 

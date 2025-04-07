@@ -3,15 +3,15 @@ import sys
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
-from oauth2client import client
-from oauth2client import tools
-from oauth2client.file import Storage
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+
 
 import webbrowser
 
 API_DOMAIN = "www.googleapis.com"
 API_URL = "https://{}".format(API_DOMAIN)
-
 
 class GoogleAPI:
     def __init__(self, api, scopes, secret, application,
@@ -56,7 +56,7 @@ class GoogleAPI:
         Returns:
             Credentials, the obtained credential.
         """
-        if self.credentials and not self.credentials.invalid:
+        if self.credentials and self.credentials.valid:
             return self.credentials
 
         if not os.path.exists(self.credential_dir):
@@ -73,16 +73,18 @@ class GoogleAPI:
                 os.path.join(self.credential_dir, credential_file)
         self.debugMsg("Credential Path", credential_path)
 
-        store = Storage(credential_path)
-        self.credentials = store.get()
-        sys.argv = ['']
-        if not self.credentials or self.credentials.invalid:
+        if os.path.exists(credential_path):
+            self.credentials = Credentials.from_authorized_user_file(credential_path, self.scopes)
+        if not self.credentials or not self.credentials.valid:
             self.debugMsg("Scopes", self.scopes)
-            flow = client.flow_from_clientsecrets(
-                self.secret, self.scopes)
-            flow.user_agent = self.application
-            self.credentials = tools.run_flow(flow, store)
-            print('Storing credentials to ' + credential_path)
+            if self.credentials and self.credentials.expired and self.credentials.refresh_token:
+                self.credentials.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(self.secret, self.scopes)
+                self.credentials = flow.run_local_server(port=0)
+                with open(credential_path, "w") as token:
+                    print('Storing credentials to ' + credential_path)
+                    token.write(self.credentials.to_json())
 
         return self.credentials
 

@@ -47,7 +47,7 @@ for o, a in opts:
         preview = 1
 
 
-pipelines = gitlab.Pipelines('dsim/source', preview=preview)
+pipelines = gitlab.Pipelines('altairengineering/dsim/simulator/dsim/source', preview=preview)
 p = pipelines.launch(branch, params)
 print("Submitted: {}".format(p.pipeline_id))
 p.wait()

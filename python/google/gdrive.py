@@ -12,10 +12,7 @@ import gsheets
 
 # External modules
 sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
-from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
-from apiclient import errors
-from apiclient import http
-from apiclient import discovery
+from googleapiclient.discovery import build
 
 DRIVE_URL_BASE = "drive.google.com/drive/u/0/"
 
@@ -133,7 +130,7 @@ def _mkdir(path):
         os.mkdir(path)
 
 
-_format_pattern = re.compile('\033\[((\d+;)*?\d+)?m')
+_format_pattern = re.compile(r'\033\[((\d+;)*?\d+)?m')
 
 
 def _format_code(*codes):
@@ -183,9 +180,7 @@ class GDriveBase(gbase.GoogleAPI):
 
     def get_service(self):
         if not self.service:
-            self.service = \
-                discovery.build(self.api, 'v3',
-                                credentials=self.get_credentials())
+            self.service = build(self.api, 'v3', credentials=self.get_credentials())
 
         return self.service
 
