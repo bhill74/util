@@ -4,8 +4,8 @@ base=$(cd $(dirname $BASH_SOURCE) && pwd)
 
 name=${USER}
 ver=$(date +"%Y%m%d")
-base_path=/tools/metrics.ca
-base_mod=/tools/Modules
+base_path=/shared/tools/metrics.ca
+base_mod=/shared/tools/Modules
 callback=''
 is_test=0
 

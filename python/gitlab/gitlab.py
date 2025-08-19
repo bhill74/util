@@ -540,6 +540,43 @@ class Base:
                              job_id)
         return self.getJSON(url, token=token, default={})
 
+    def job_query(self, project, criteria={}, token=None):
+        url = Base._jobs_api(self, project)
+
+        id_min = None
+        if 'id_min' in criteria:
+            id_min = criteria['id_min']
+            del criteria['id_min']
+
+        id_max = None
+        if 'id_max' in criteria:
+            id_max = criteria['id_max']
+            del criteria['id_max']
+
+        jobs = []
+        for j in self.getJSON(url, token=token, default=[]):
+            id = j['id']
+            if id_min and id_min > id:
+                return jobs
+            if id_max and id_max < id:
+                continue
+
+            valid = True
+            for k, v in criteria.items():
+                if k in j:
+                    if j[k] == v:
+                        continue
+
+                valid = False
+                break
+
+            if not valid:
+                continue
+
+            jobs += [j]
+
+        return jobs
+    
     def variables(self, project, pipeline_id, token=None):
         url = "{}/{}/variables".format(Base._pipelines_api(self, project),
                                        pipeline_id)
@@ -562,6 +599,20 @@ class Base:
                              user_id)
         return self.getJSON(url, token=token, default={})
 
+    def artifactByFileName(self, project, job_id, filename, output=None, token=None):
+        url = "{}/{}/artifacts/{}".format(
+            Base._jobs_api(self, project),
+            job_id, filename)
+
+        if not output:
+            r = self.get(url, token=token)
+            if r.status_code != 200:
+                return default
+
+            return json.loads(r.text)
+        else:
+            self.download(url, output=output, token=token)
+        
     def artifactsById(self, project, job_id, output=None, token=None):
         if not output:
             info = Base.job(self, project, job_id)
@@ -904,6 +955,15 @@ class Project(Base):
         """
         return Base.variables(self, self.project, pipeline_id, token=token)
 
+    def artifactByFileName(self, job_id, filename, output=None, token=None):
+        """
+        Used to retrieve specific artifact
+        """
+        return Base.artifactByFileName(self, self.project, job_id,
+                                       filename,
+                                       output=output,
+                                       token=token)
+    
     def artifactsById(self, job_id, output=None, token=None):
         """
         Used to retrieve artifacts by ID.
@@ -927,6 +987,15 @@ class Project(Base):
         jobs = Base.jobs(self, self.project, pipeline_id, token=token)
         return [Job(self.project,
                 pipeline_id, job['id'],
+                self.domain, self.preview) for job in jobs]
+ 
+    def job_query(self, criteria={}, token=None):
+        """ 
+        Used to query jobs
+        """
+        jobs = Base.job_query(self, self.project, criteria=criteria, token=token)
+        return [Job(self.project,
+                job['pipeline']['id'], job['id'],
                 self.domain, self.preview) for job in jobs]
 
     def trace(self, job_id, token=None):
@@ -1138,6 +1207,12 @@ class Pipeline(Project):
         """
         return self.hierarchy(_history_props, token=token)
 
+    def artifactByFileName(self, job_id, filename, output=None, token=None):
+        """
+        Get a specific artifact by name
+        """
+        return Project.artifactByFileName(self, job_id, filename, output=output, token=token)
+    
     def artifactsById(self, job_id, output=None, token=None):
         """
         Download all artifacts of a specific Job in the Pipeline.
@@ -1233,6 +1308,12 @@ class Job(Pipeline):
         Returns the tracing history of the Job.
         """
         return Pipeline.trace(self, self.job_id, token=token)
+    
+    def artifactByFileName(self, filename, token=None):
+        """
+        Download specific artifact created by this Job.
+        """
+        return Pipeline.artifactByFileName(self, self.job_id, filename, token=token)
 
     def artifacts(self, output='archive', token=None):
         """

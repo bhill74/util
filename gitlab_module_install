@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./base_module_install -n gitlab "${@}" ./python/gitlab ./bash/gitlab ./python/config
