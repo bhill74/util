@@ -5,6 +5,7 @@ source $BASE/functions
 
 initialize $HOME/lib/gitlab
 install_dir $HOME/lib/gitlab '*.py'
+pip3 install --target $HOME/lib/ext --upgrade requests
 
 initialize $HOME/util/gitlab
 install_other $HOME/util/gitlab

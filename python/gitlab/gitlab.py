@@ -7,13 +7,15 @@ GitLab objects
 import sys
 import os
 import json
-import requests
 import logging
 import urllib.parse
 import re
 import time
 from inspect import isfunction
 
+# External modules
+sys.path.append(os.path.join(os.getenv('HOME'), 'lib', 'ext'))
+import requests
 
 # Personal modules
 sys.path.append(os.path.join(os.getenv('HOME'), "lib", "config"))
@@ -326,6 +328,9 @@ class Base:
     def _jobs_api(self, project):
         return Base._project_api(self, project) + "/jobs"
 
+    def _bridges_api(self, project):
+        return Base._project_api(self, project) + "/bridges"
+
     def _trigger_api(self, project):
         return Base._project_api(self, project) + "/trigger/pipeline"
 
@@ -540,6 +545,11 @@ class Base:
                              job_id)
         return self.getJSON(url, token=token, default={})
 
+    def bridge(self, project, bridge_id, token=None):
+        url = "{}/{}".format(Base._bridges_api(self, project),
+                             bridge_id)
+        return self.getJSON(url, token=token, default={})
+
     def job_query(self, project, criteria={}, token=None):
         url = Base._jobs_api(self, project)
 
@@ -607,7 +617,8 @@ class Base:
         if not output:
             r = self.get(url, token=token)
             if r.status_code != 200:
-                return default
+                print("URL", url)
+                return {} 
 
             return json.loads(r.text)
         else:
@@ -640,6 +651,13 @@ class Base:
 
     def jobs(self, project, pipeline_id, token=None):
         url = "{}/{}/jobs".format(Base._pipelines_api(self, project),
+                                  pipeline_id)
+        result = self.getJSON(url, token=token, default=[])
+        result.sort(key=lambda x: x["id"])
+        return result
+
+    def bridges(self, project, pipeline_id, token=None):
+        url = "{}/{}/bridges".format(Base._pipelines_api(self, project),
                                   pipeline_id)
         result = self.getJSON(url, token=token, default=[])
         result.sort(key=lambda x: x["id"])
@@ -998,6 +1016,15 @@ class Project(Base):
                 job['pipeline']['id'], job['id'],
                 self.domain, self.preview) for job in jobs]
 
+    def bridges(self, pipeline_id, token=None):
+        """
+        Used to list all the bridges for a given pipeline.
+        """
+        bridges = Base.bridges(self, self.project, pipeline_id, token=token)
+        return [Bridge(self.project,
+                pipeline_id, bridge['id'],
+                self.domain, self.preview, info=bridge) for bridge in bridges]
+ 
     def trace(self, job_id, token=None):
         """
         Used to trace a job and find all nested pipelines/jobs. 
@@ -1068,6 +1095,12 @@ class Pipelines(Project):
         """
         return Project.jobs(self, pipeline_id, token=token)
 
+    def bridges(self, pipeline_id, token=None):
+        """
+        Returns all bridges from a specific Pipeline.
+        """
+        return Project.bridges(self, pipeline_id, token=token)
+
 
 class Pipeline(Project):
     """
@@ -1102,6 +1135,12 @@ class Pipeline(Project):
         Returns the jobs related to the Pipline.
         """
         return Project.jobs(self, self.pipeline_id, token=token)
+
+    def bridges(self, token=None):
+        """
+        Returns the bridges related to the Pipline.
+        """
+        return Project.bridges(self, self.pipeline_id, token=token)
 
     def jobIds(self, token=None):
         """
@@ -1198,6 +1237,27 @@ class Pipeline(Project):
 
         for job in self.jobs(token=token):
             info['jobs'].append(job.hierarchy(props=props, token=token))
+
+        for bridge in self.bridges(token=token):
+            i = bridge.info()
+            #print("BRIDGE", self, json.dumps(i, indent=4))
+            if 'downstream_pipeline' not in i:
+                continue
+
+            if not isinstance(i['downstream_pipeline'], dict):
+                continue
+
+            if 'id' not in i['downstream_pipeline']:
+                continue
+
+            dpid = i['downstream_pipeline']['id']
+            dpipeline = Pipeline(self.project, dpid,
+                         self.domain, self.preview)
+            for job in dpipeline.jobs(token=token):
+                h = job.hierarchy(props=props, token=token)
+                if 'pipelines' in h:
+                    h['pipelines'].append(dpid)
+                info['jobs'].append(h)
 
         return info
 
@@ -1342,7 +1402,7 @@ class Job(Pipeline):
         """
         Report the hierarchy of the Job.
         """
-        info = {'id': self.job_id, 'pipelines': []}
+        info = {'id': self.job_id, 'name': self.name(), 'pipelines': []}
         if props:
             info.update(self.attrs(props, token=token))
 
@@ -1367,6 +1427,50 @@ class Job(Pipeline):
                 break
 
             time.sleep(3)
+
+
+class Bridge(Pipeline):
+    """
+    A class for interfacing with a single GitLab Bridge.
+
+    Arguments:
+        project -- The unique name or ID of a project in GitLab.
+        pipeline_id -- The unique ID of a GitLab pipeline.
+        bridge_id -- The unique ID of a GibLab bridge.
+        [domain] -- The GitLab domain, will default to the local configuration.
+        [preview = 0] -- Whether to display the access operations and not actually perform any communication.
+    """
+
+    def __init__(self, project, pipeline_id, bridge_id, domain=None, preview=0, info=None):
+        self.bridge_id = bridge_id
+        super().__init__(project, pipeline_id, domain, preview)
+        self._info = info
+
+    def __rep__(self):
+        return "<Bridge {}/'{}' on {}>".format(self.bridge_id,
+                                            self.name(),
+                                            Project(self.project, domain=self.domain).name())
+
+    def __str__(self):
+        return self.__rep__()
+
+    def id(self):
+        """
+        Returns the unique ID of the Bridge.
+        """
+        return self.bridge_id
+
+    def info(self, token=None):
+        """
+        Returns the GitLab record of the Bridge.
+        """
+        return self._info #Base.bridge(self, self.project, self.bridge_id, token=token)
+
+    def name(self, info=None, token=None):
+        """
+        Returns the name of the Bridge.
+        """
+        return self.attr('name', info=info, token=token)
 
 
 class Schedule(Project):

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/google
+install_file $HOME/lib/google include.sh
+
+initialize $HOME/util/google
+install_file $HOME/util/google mstee
+install_file $HOME/util/google to1doc
+install_file $HOME/util/google completions.sh
+install_other $HOME/util/google

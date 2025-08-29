@@ -1,0 +1,138 @@
+#!/usr/bin/python3 -B
+
+import os
+import getopt
+import sys
+import re
+from collections import Counter
+import json
+
+# Personal modules
+sys.path.append(os.path.join(os.getenv('HOME'), "lib", "msgraph"))
+import msdrive
+
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                "i:l:f:p:m:LhqoP:eI",
+                      ("id=", "location=", "file=", "path=", "mimeType=",
+                       "expand", "info",
+                       "ls", "quiet", "output", "props=", "help"))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-i/--id <id>] [-l/--location <location>] [-t/--target <target>] "
+          "[-L/--ls] "
+          "[-q/--quiet] "
+          "[-h/--help]".format(program))
+    print("Used to transfer content from Google Drive.\n")
+    print("  -h, --help         Display this help information")
+    print("  -i, --id           The ID of the item")
+    print("  -l, --location     The location to access")
+    print("  -t, --target       The target for the download")
+    print("  -L, --ls           List the matching contents only")
+    print("  -m, --mimeType     Define the output mime-time")
+    print("  -q, --quiet        Operate in quiet mode")
+    print("  -o, --output       Send content to stdout")
+    print("  -I, --info         Display the google drive information")
+    print("Report bugs to: bhill@altair.com\n")
+
+
+def count(items):
+    return Counter(items)
+
+
+filename = 'unknown.txt'
+content = {'location': ''}
+path = ''
+preview = False
+ls = False
+quiet = False
+output = False
+mimeType = False
+props = []
+expand = False
+info=False
+
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-i', '--id'):
+        content['id'] = a
+
+    if o in ('-l', '--location'):
+        content['location'] = a
+
+    if o in ('-m', '--mimeType'):
+        mimeType = a
+
+    if o in ('-f', '--file'):
+        content['file'] = a
+        filename = os.path.basename(a)
+
+    if o in ('-p', '--path'):
+        path = a
+
+    if o in ('-L', '--ls'):
+        ls = True
+
+    if o in ('-q', '--quiet'):
+        quiet = True
+
+    if o in ('-o', '--output'):
+        output = True
+
+    if o in ('-n', '--noopt'):
+        preview = True
+
+    if o in ('-P', '--props'):
+        props += a.split(r'\s*,\s')
+
+    if o in ('-e', '--expand'):
+        expand = True
+
+    if o in ('-I', '--info'):
+        info = True
+
+gd = msdrive.MSDrive('regression')
+
+loc = content['location']
+locs = os.path.split(loc)
+if expand or (len(locs) > 1 and locs[-1] == ''):
+    loc = re.sub(r'\*?$', '*', loc)
+
+# Resolve the base folder and search pattern
+if 'id' in content and content['id'] != '':
+    r = [gd.getFileById(content['id'])]
+elif loc == '':
+    r = [gd.getRootFolder()]
+else:
+    r = gd.resolve(loc, create=False)
+    
+# Process every result
+for g in r:
+    if info:
+        print(json.dumps(g.infoById(g.msid, ['*']), indent=4))
+
+    elif isinstance(g, msdrive.MSFile):
+        if ls:
+            print(g.fullPath(filter=loc))
+        elif output:
+            print(g.text())
+        else:
+            g.download(quiet=quiet, mimeType=mimeType)
+
+    elif ls:
+        print(g.fullPath(filter=loc))
+
+    elif output:
+        print("Output does not apply to more than one result")
+    else:
+        g.download(quiet=quiet)

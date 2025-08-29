@@ -1,0 +1,95 @@
+#!/usr/bin/python3 -b
+
+import sys
+import getopt
+import os
+from msgraph import msexcel
+
+try:
+    opts, other = \
+        getopt.getopt(sys.argv[1:],
+                "hvoc:i:u:d:q:k",
+                ("help", "version", "open", "cell=", "input=", "delimiter=", "quote=", "keep", "sheet=", "spreadsheet=", "update="))
+except getopt.GetoptError as err:
+    print(str(err))
+    sys.exit(2)
+
+
+def usage():
+    program = os.path.basename(sys.argv[0])
+    print("Usage: {} [-h/--help] [-i/--input <file>] [-c/--cell <range>] "
+            "[-u/--update] [-k/--keep] "
+            "[-s/--sheet <name>] "
+            "[-o/--open]".format(program))
+    print("Used to send stding to Google Sheets.\n")
+    print("   -h, --help    Display this help information")
+    print("   -v, --version Display the version")
+    print("   -i, --input   Specify a CSV file instead of stdin")
+    print("   -d, --delimiter Specify a delimiter")
+    print("   -q, --quote   Specify the quote character")
+    print("   -c, --cell    The first (top-left) cell to append")
+    print("   -u, --update  Update the cells instead of appending")
+    print("   -k, --keep    Keep fields as they are without conversion (int or float)")
+    print("   -s, --sheet   Use this sheet, otherwise first visible sheet is used")
+    print("   -o, --open    Open a browser with the newly created sheet")
+    print("   -S, --spreadsheet The ID of the spreadsheet to use")
+    print("Report bugs to: brian.hill@metrics.ca\n")
+    
+
+open_browser = False
+source = None
+cell = "A1"
+update = False
+keep = False
+sheet = None
+msid = None
+delim = ','
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit(0)
+
+    if o in ('-o', '--open'):
+        open_browser = True
+
+    if o in ('-c', '--cell'):
+        cell = a
+
+    if o in ('-i', '--input'):
+        source = a
+
+    if o in ('-u', '--update'):
+        update = True
+
+    if o in ('-k', '--keep'):
+        keep = True
+
+    if o in ('-s', '--sheet'):
+        sheet = a
+    
+    if o in ('-d', '--delimiter'):
+        delim = a
+
+    if o in ('-S', '--spreadsheet'):
+        msid = a
+
+spreadsheet = msexcel.MSSpreadsheet('toexcel', msid=msid)
+
+def toNum(d):
+    return float(d) if d.isnumeric() else d
+def toNumRow(data):
+    return [toNum(d) for d in data]
+
+insrc = os.open(source, "r") if source else sys.stdin
+data = [s.split(delim) for s in insrc.read().split("\n")]
+data = [toNumRow(d) for d in data]
+
+if data[-1] == [""]:
+    data.remove(data[-1])
+    
+crange = msexcel.cell_range(cell, sheet=sheet)
+spreadsheet.update(data, crange)
+
+name = spreadsheet.title()
+url = spreadsheet.url()
+sys.stderr.write("Spreadsheet \'{}\' updated: {}\n".format(name, url))

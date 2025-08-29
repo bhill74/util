@@ -1,0 +1,14 @@
+#!/bin/bash
+
+BASE="../../"
+source $BASE/functions
+
+initialize $HOME/lib/msgraph
+install_dir $HOME/lib/msgraph 'ms*.py'
+install_dir $HOME/lib/msgraph '*.json'
+chmod a+r $HOME/lib/msgraph/*.json
+pip3 install --target $HOME/lib/ext --upgrade msal openpyxl
+
+initialize $HOME/util/msgraph
+install_dir $HOME/util/msgraph 'to*'
+install_dir $HOME/util/msgraph 'from*'
