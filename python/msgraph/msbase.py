@@ -98,7 +98,7 @@ class MSGraphApplication(Base):
                 self.errorMsg("Application file {} can not be found".format(self.path))
                 return
         elif 'MS_GRAPH_APP_DIR' in os.environ:
-            self.path = os.envrion['MS_GRAPH_APP_DIR']
+            self.path = os.environ['MS_GRAPH_APP_DIR']
             f = os.path.join(self.path, application + '.json')
             if os.path.exists(f):
                 self.path = f
