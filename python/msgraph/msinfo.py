@@ -2,7 +2,7 @@ import msbase
 
 class MSInfo(msbase.MSGraphBase):
     def __init__(self, application, debug=False):
-        msgraph.msbase.MSGraphBase.__init__(self, application, debug=debug)
+        msbase.MSGraphBase.__init__(self, application, debug=debug)
     
     def info(self, prop=None):
         return self.get(props=({'$select': prop} if prop else None))
