@@ -307,6 +307,7 @@ def shift_cell(crange, column_offset=0, row_offset=0):
     c = index_to_column(ci)
     return cell_range("{}{}".format(c, r), sheet=sh)
 
+        
 class MSExcelItem(MSFile):
     def __init__(self, application, msid=None, path=None, credentials=None, debug=False, info=None):
         MSFile.__init__(self, application, msid=msid, path=path, credentials=credentials, debug=debug)
@@ -403,7 +404,7 @@ class MSSpreadsheet(MSExcelItem):
 
     def _range_url(self, info):
         return MSWorksheet.endpoint(self, label=info['sheetName'])+'/range(address=\'{}\')'.format(info['range'])
-    
+
     def retrieve(self, rangeName, quiet=False):
         def get_limit():
             sh, c, r = cell_decomp(rangeName)
@@ -411,6 +412,7 @@ class MSSpreadsheet(MSExcelItem):
             start, stop, multiple = range_decomp(data)
             sh, c, r = cell_decomp(stop)
             return r
+
         
         info = self.getRangeInfo(rangeName, get_limit)
 
@@ -433,7 +435,22 @@ class MSSpreadsheet(MSExcelItem):
         info = self.getRangeInfo(rangeName)
         self.patch(self._range_url(info)+'/format/'+type, json=attributes)
         return None
+
+    def setFillColor(self, color, rangeName="A1"):
+        return self.setFormat('fill', {'color':color}, rangeName)
+    
+    def autoSize(self, rangeName="A1"):
+        def get_limit():
+            sh, c, r = cell_decomp(rangeName)
+            data = self.usedAddress(sheetName=sh)
+            start, stop, multiple = range_decomp(data)
+            sh, c, r = cell_decomp(stop)
+            return r
         
+        info = self.getRangeInfo(rangeName, get_limit)
+        self.post(self._range_url(info)+'/format/autofitColumns')
+        return None
+    
     def update(self, values, rangeName="A1", input_option="RAW", quiet=False):
         if input_option == 'USER_ENTERED':
             values = translate_cell_info(rangeName, values)
@@ -470,7 +487,7 @@ class MSSpreadsheet(MSExcelItem):
 
         return True, rangeName
 
-    def updateByValue(self, key, values, rangeName="A1", note=None):
+    def updateByValue(self, key, values, rangeName="A1", callback=None):
         sheetName, col, row = cell_decomp(rangeName)
         cells = self.retrieve(rangeName)
         num_rows = len(cells)
@@ -507,14 +524,8 @@ class MSSpreadsheet(MSExcelItem):
         else:
             result = self.update([3*['']], crange)
 
-        if note:
-            offset = 1
-            if isinstance(note, tuple):
-                note, offset = note
-                
-            crange = cell_range("{}{}".format(
-                index_to_column(col_index+1+offset), row + insert_row), sheet=sheetName)
-            self.setNote(note, crange)
+        if callback:
+            callback(self, crange)
             
         return result
     

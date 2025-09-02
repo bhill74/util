@@ -251,9 +251,13 @@ class MSGraphBase(Base):
         self.debugDict(args)
         result = requests.post(**args)
         self.debugMsg('Response Code', result.status_code)
-        self.debugDict(result.json())
+        try:
+            self.debugDict(result.json())
+            return result.json()
+        except:
+            pass
         
-        return result.json()
+        return {}
     
     def put(self, endpoint='', payload=None):
         self.debugMsg("PUT")
