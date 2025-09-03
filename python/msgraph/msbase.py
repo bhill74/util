@@ -22,6 +22,8 @@ _AUTHORITY_URL = 'https://login.microsoftonline.com/{}/'
 
 _BASE_URL = 'https://graph.microsoft.com/v1.0'
 
+_HTTP_LIMIT = 5
+
 class Base:
     def __init__(self, debug=False):
         self.debug = debug
@@ -236,12 +238,22 @@ class MSGraphBase(Base):
                 args['url'] += f"{k}=" + urllib.parse.quote_plus(v) + '&'
 
         self.debugDict(args)
-        result = requests.get(**args)
-        print("GET", args['url'], result.status_code)
-        self.debugMsg('Response Code', result.status_code)
-        self.debugDict(result.json())
-        
-        return result.json()
+        count = 0
+        while count < _HTTP_LIMIT:
+            count += 1
+            self.debugMsg("Attempt {}".format(count))
+            result = requests.get(**args)
+            self.debugMsg('Response Code', result.status_code)
+            if int(result.status_code/200) == 1:
+                break;
+
+        try:
+            self.debugDict(result.json())
+            return result.json()
+        except:
+            pass
+
+        return {}
 
     def post(self, endpoint='', data={}):
         self.debugMsg("POST")
@@ -250,9 +262,15 @@ class MSGraphBase(Base):
         args['json'] = data
         
         self.debugDict(args)
-        result = requests.post(**args)
-        self.debugMsg('Response Code', result.status_code)
-        print("POSTT", args['url'], result.status_code)
+        count = 0
+        while count < _HTTP_LIMIT:
+            count += 1
+            self.debugMsg("Attempt {}".format(count))
+            result = requests.post(**args)
+            self.debugMsg('Response Code', result.status_code)
+            if int(result.status_code/200) == 1:
+                break;
+
         try:
             self.debugDict(result.json())
             return result.json()
@@ -267,12 +285,22 @@ class MSGraphBase(Base):
         args['data'] = payload
 
         self.debugDict(args)
-        result = requests.put(**args)
-        self.debugMsg('Response Code', result.status_code)
-        print("PUI", args['url'], result.status_code)
-        self.debugDict(result.json())
-        
-        return result.json()
+        count = 0
+        while count < _HTTP_LIMIT:
+            count += 1
+            self.debugMsg("Attempt {}".format(count))
+            result = requests.put(**args)
+            self.debugMsg('Response Code', result.status_code)
+            if int(result.status_code/200) == 1:
+                break
+
+        try:
+            self.debugDict(result.json())
+            return result.json()
+        except:
+            pass
+
+        return {}
 
     def patch(self, endpoint='', data=None, json=None):
         self.debugMsg("PATCH")
@@ -288,9 +316,19 @@ class MSGraphBase(Base):
             args['headers']['Content-Type'] = 'application/json'
 
         self.debugDict(args)
-        result = requests.patch(**args)
-        self.debugMsg('Response Code', result.status_code)
-        print("PUI", args['url'], result.status_code)
-        self.debugDict(result.json())
-        
-        return result.json()
+        count = 0
+        while count < _HTTP_LIMIT:
+            count += 1
+            self.debugMsg("Attempt {}".format(count))
+            result = requests.patch(**args)
+            self.debugMsg('Response Code', result.status_code)
+            if int(result.status_code/200) == 1:
+                break
+
+        try:
+            self.debugDict(result.json())
+            return result.json()
+        except:
+            pass
+
+        return {}

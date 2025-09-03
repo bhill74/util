@@ -440,7 +440,6 @@ class MSSpreadsheet(MSExcelItem):
     
     def autoSize(self, rangeName="A1"):
         def get_limit():
-            print("GET LIMIT", rangeName)
             sh, c, r = cell_decomp(rangeName)
             data = self.usedAddress(sheetName=sh)
             start, stop, multiple = range_decomp(data)
