@@ -237,6 +237,7 @@ class MSGraphBase(Base):
 
         self.debugDict(args)
         result = requests.get(**args)
+        print("GET", args['url'], result.status_code)
         self.debugMsg('Response Code', result.status_code)
         self.debugDict(result.json())
         
@@ -251,6 +252,7 @@ class MSGraphBase(Base):
         self.debugDict(args)
         result = requests.post(**args)
         self.debugMsg('Response Code', result.status_code)
+        print("POSTT", args['url'], result.status_code)
         try:
             self.debugDict(result.json())
             return result.json()
@@ -267,6 +269,7 @@ class MSGraphBase(Base):
         self.debugDict(args)
         result = requests.put(**args)
         self.debugMsg('Response Code', result.status_code)
+        print("PUI", args['url'], result.status_code)
         self.debugDict(result.json())
         
         return result.json()
@@ -287,6 +290,7 @@ class MSGraphBase(Base):
         self.debugDict(args)
         result = requests.patch(**args)
         self.debugMsg('Response Code', result.status_code)
+        print("PUI", args['url'], result.status_code)
         self.debugDict(result.json())
         
         return result.json()
