@@ -31,15 +31,15 @@ class Base:
     def debug(self, flag):
         self.debug = flag
         
-    def debugMsg(self, header, msg=""):
+    def debugMsg(self, header, msg="", indent=0):
         if not self.debug:
             return
 
-        print("--- {}: {}".format(header, msg))
+        print("{}--- {}: {}".format(" "*indent if indent else "", header, msg))
 
-    def debugDict(self, info):
+    def debugDict(self, info, indent=0):
         for k, v in info.items():
-            self.debugMsg(k, v)
+            self.debugMsg(k, v, indent=indent)
         
     def errorMsg(self, msg=""):
         sys.stderr.write(msg +"\n")
@@ -210,8 +210,8 @@ class MSGraphBase(Base):
         creds = self.get_credentials()
         return creds['access_token'] if creds and 'access_token' in creds else ''
     
-    def endpoint(self):
-        return _BASE_URL + '/me'
+    def endpoint(self, path='me'):
+        return _BASE_URL + '/' + path
 
     def _url(self, endpoint=''):
         if endpoint.startswith('//'):
@@ -248,7 +248,7 @@ class MSGraphBase(Base):
                 break;
 
         try:
-            self.debugDict(result.json())
+            self.debugDict(result.json(), indent=3)
             return result.json()
         except:
             pass
@@ -272,7 +272,7 @@ class MSGraphBase(Base):
                 break;
 
         try:
-            self.debugDict(result.json())
+            self.debugDict(result.json(), indent=3)
             return result.json()
         except:
             pass
@@ -295,7 +295,7 @@ class MSGraphBase(Base):
                 break
 
         try:
-            self.debugDict(result.json())
+            self.debugDict(result.json(), indent=3)
             return result.json()
         except:
             pass
@@ -326,7 +326,7 @@ class MSGraphBase(Base):
                 break
 
         try:
-            self.debugDict(result.json())
+            self.debugDict(result.json(), indent=3)
             return result.json()
         except:
             pass

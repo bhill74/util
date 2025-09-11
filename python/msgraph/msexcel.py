@@ -311,7 +311,6 @@ def shift_cell(crange, column_offset=0, row_offset=0):
 class MSExcelItem(MSFile):
     def __init__(self, application, msid=None, path=None, credentials=None, debug=False, info=None):
         MSFile.__init__(self, application, msid=msid, path=path, credentials=credentials, debug=debug)
-        self.msid = msid
 
     def endpoint(self):
         return MSFile.endpoint(self)
@@ -327,10 +326,10 @@ class MSSpreadsheet(MSExcelItem):
 
 
             
-    def init(self, name=None, path='', drive=None, sheetName='Sheet1', rows=200, columns=20, colour=None):
+    def init(self, name=None, path='', folder=None, sheetName='Sheet1', rows=200, columns=20, colour=None):
         if self.msid is not None:
             return self.msid
-        
+
         # Create a blank spreadsheet in the TMP directory
         blank = Workbook()
         file = os.path.join(tempfile.gettempdir(), "blank.xlsx");
@@ -341,15 +340,19 @@ class MSSpreadsheet(MSExcelItem):
         
         result = {}
         with open(file, "rb") as f:
-            if not drive:
+            if not folder:
                 folder = MSRootFolder(self.application, credentials=self.credentials, debug=self.debug)
-                
+   
             result = self.put(folder.endpoint()+':{}/{}.xlsx:/content'.format(path, name), payload=f.read())
             f.close()
 
         os.remove(file)
-        self.msid = result['id']
-
+        try:
+            self.msid = result['id']
+        except:
+            sys.stderr.write("The new spreadsheet could not be created under {}".format(folder.loc()))
+            return None
+        
         # TODO: Should just work with index=0 but it doesn't
         sheets = self._sheets()
         wksheet = MSWorksheet(self.application, self.msid, label=sheets[0]['name'], credentials=self.credentials, debug=self.debug)
