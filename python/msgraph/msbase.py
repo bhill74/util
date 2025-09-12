@@ -137,8 +137,20 @@ class MSGraphApplication(Base):
 
     def getScopes(self):
         return self.info['scopes'] if 'scopes' in self.info else None
-    
 
+    def getName(self, credentials=None):
+        if not credentials:
+            return ''
+        
+        sp = MSServicePrincipals(self, credentials)
+        apps = sp.searchByApp(self.getID())
+        try:
+            return apps['value'][0]['displayName']
+        except:
+            pass
+        
+        return ''
+        
 class MSGraphCredentials(Base):
     def __init__(self, debug=False):
         Base.__init__(debug)
@@ -213,6 +225,18 @@ class MSGraphBase(Base):
     def endpoint(self, path='me'):
         return _BASE_URL + '/' + path
 
+    def info(self):
+        return self.get(self.endpoint())
+
+    def attr(self, prop):
+        info = self.get(self.endpoint(), props={'$select': prop})
+        try:
+            return info[prop]
+        except:
+            pass
+
+        return None
+    
     def _url(self, endpoint=''):
         if endpoint.startswith('//'):
             return _BASE_URL + endpoint[2:]
@@ -332,3 +356,13 @@ class MSGraphBase(Base):
             pass
 
         return {}
+
+class MSServicePrincipals(MSGraphBase):
+    def __init__(self, application, credentials=None, debug=None):
+        MSGraphBase.__init__(self, application, credentials=credentials, debug=debug)
+
+    def endpoint(self):
+        return MSGraphBase.endpoint(self, path='servicePrincipals')
+
+    def searchByApp(self, id):
+        return self.get(self.endpoint(), props={'$filter': 'appId eq \'{}\''.format(id)})

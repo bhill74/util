@@ -27,6 +27,8 @@ class MSDriveBase(MSGraphBase):
         self.parent = parent
         self._name = info['name'] if info and 'name' in info else None
         self._cache = {}
+        if not driveId:
+            driveId = os.getenv('MS_DRIVE_ID', driveId)
         self.driveId = driveId
     
         MSGraphBase.__init__(self, application, credentials=credentials, debug=debug)
@@ -127,7 +129,7 @@ class MSDriveItem(MSDriveBase):
     def id(self):
         return self.msid
 
-    def driveId(self):
+    def getDriveId(self):
         if not self.drive_id:
             pinfo = self.attr('parentReference')
             self.drive_id = pinfo['driveId'] if 'driveId' in pinfo else None
@@ -135,7 +137,7 @@ class MSDriveItem(MSDriveBase):
         return self.drive_id
     
     def fid(self):
-        return '{}@{}'.format(self.msid, self.driveId())
+        return '{}@{}'.format(self.msid, self.driveId)
 
     def endpoint(self):
         return MSDriveBase.endpoint(self) + '/items/{}'.format(self.msid)
@@ -327,8 +329,6 @@ class MSFolder(MSContainer):
     
 class MSDrive(MSDriveBase):
     def __init__(self, application, driveId=None, path=None, credentials=None, debug=False):
-        if not driveId:
-            driveId = os.getenv('MS_DRIVE_ID', driveId)
         MSDriveBase.__init__(self, application, driveId=driveId, credentials=credentials, debug=debug)
 
     def driveId(self):
@@ -353,6 +353,7 @@ class MSDrive(MSDriveBase):
 
     def getFileById(self, id):
         return MSFile(self.application, id, credentials=self.credentials, debug=self.debug)
+
     
 class MSRootFolder(MSContainer):
     def __init__(self, application, credentials=None, driveId=None, debug=False):
