@@ -56,7 +56,7 @@ class PlaintextFilePersistence(Base):
         except FileNotFoundError:
             return ""
         except Exception as e:
-            errorMsg(f"Error loading cache from {self.file_path}: {e}")
+            self.errorMsg(f"Error loading cache from {self.file_path}: {e}")
             return ""
 
     def save(self, content):
@@ -67,7 +67,7 @@ class PlaintextFilePersistence(Base):
                 f.close()
             self._state_changed = False
         except Exception as e:
-            errorMsg(f"Error saving cache to {self.file_path}: {e}")
+            self.errorMsg(f"Error saving cache to {self.file_path}: {e}")
             
     def has_state_changed(self):
         return True
