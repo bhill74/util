@@ -3,7 +3,7 @@
 import sys
 import getopt
 import os
-from msgraph import msexcel
+import msexcel
 
 try:
     opts, other = \

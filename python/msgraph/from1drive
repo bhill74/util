@@ -115,7 +115,7 @@ elif loc == '':
     r = [gd.getRootFolder()]
 else:
     r = gd.resolve(loc, create=False)
-    
+  
 # Process every result
 for g in r:
     if info:

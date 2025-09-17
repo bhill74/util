@@ -309,18 +309,18 @@ def shift_cell(crange, column_offset=0, row_offset=0):
 
         
 class MSExcelItem(MSFile):
-    def __init__(self, application, msid=None, path=None, credentials=None, debug=False, info=None):
-        MSFile.__init__(self, application, msid=msid, path=path, credentials=credentials, debug=debug)
+    def __init__(self, application, msid=None, path=None, driveId=None, credentials=None, debug=False, info=None):
+        MSFile.__init__(self, application, msid=msid, path=path, driveId=driveId, credentials=credentials, debug=debug)
 
     def endpoint(self):
         return MSFile.endpoint(self)
         
 class MSSpreadsheet(MSExcelItem):
-    def __init__(self, application, msid=None, name='', credentials=None, debug=None, info=None):
+    def __init__(self, application, msid=None, name='', driveId=None, credentials=None, debug=None, info=None):
         if msid is None and info:
             msid = info['id']
 
-        MSExcelItem.__init__(self, application=application, msid=msid, credentials=credentials, debug=debug)
+        MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug)
         if name:
             self._name = name
 
@@ -341,7 +341,7 @@ class MSSpreadsheet(MSExcelItem):
         result = {}
         with open(file, "rb") as f:
             if not folder:
-                folder = MSRootFolder(self.application, credentials=self.credentials, debug=self.debug)
+                folder = MSRootFolder(self.application, driveId=self.driveId, credentials=self.credentials, debug=self.debug)
    
             result = self.put(folder.endpoint()+':{}/{}.xlsx:/content'.format(path, name), payload=f.read())
             f.close()
@@ -355,7 +355,7 @@ class MSSpreadsheet(MSExcelItem):
         
         # TODO: Should just work with index=0 but it doesn't
         sheets = self._sheets()
-        wksheet = MSWorksheet(self.application, self.msid, label=sheets[0]['name'], credentials=self.credentials, debug=self.debug)
+        wksheet = MSWorksheet(self.application, self.msid, label=sheets[0]['name'], driveId=self.driveId, credentials=self.credentials, debug=self.debug)
         wksheet.setLabel(sheetName)
 
     def url(self):
@@ -387,7 +387,7 @@ class MSSpreadsheet(MSExcelItem):
     def addSheet(self, sheetName, colour=None, index=-1):
         data = {'name': sheetName }
         result = self.post(MSWorkbook.endpoint(self) + '/add', data=data)
-        wksheet = MSWorksheet(self.application, self.msid, info=result, credentials=self.credentials, debug=self.debug)
+        wksheet = MSWorksheet(self.application, self.msid, info=result, driveId=self.driveId, credentials=self.credentials, debug=self.debug)
         if colour:
             input = {'tabColor': colour }
             url = MSWorksheets.endpoint(self, id=result['position'])
@@ -562,18 +562,18 @@ class MSSpreadsheet(MSExcelItem):
         return '<MSSpreadsheet {} ({})>'.format(self._name if self._name else self.name(), self.msid)
         
 class MSWorkbook(MSExcelItem):
-     def __init__(self, application, msid, credentials=None, debug=None):
-        MSExcelItem.__init__(self, application=application, msid=msid, credentials=credentials, debug=debug)   
+     def __init__(self, application, msid, driveId=None, credentials=None, debug=None):
+        MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug)   
 
      def endpoint(self):
         return MSExcelItem.endpoint(self) + '/workbook/worksheets'
         
 class MSWorksheet(MSExcelItem):
-    def __init__(self, application, msid, label=None, sheetId=None, credentials=None, debug=None, info=None):
+    def __init__(self, application, msid, label=None, sheetId=None, driveId=None, credentials=None, debug=None, info=None):
         self.label = label
         self.sheetId = sheetId
 
-        MSExcelItem.__init__(self, application=application, msid=msid, credentials=credentials, debug=debug, info=info)
+        MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug, info=info)
 
     def endpoint(self, id=None, label=None):
         if not id:

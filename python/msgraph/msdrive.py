@@ -21,6 +21,9 @@ def resolveQ(param={}, q=None):
 def get_pattern(pattern):
     return re.compile('^{}$'.format(re.sub('\\*', '.+', pattern)))
 
+def remove_root(value):
+    return re.sub(r'/drive(s/[^/]+)?/root:', '', value)
+
 class MSDriveBase(MSGraphBase):
     def __init__(self, application,
                  credentials=None, driveId=None, debug=False, parent=None, info=None):
@@ -66,7 +69,7 @@ class MSDriveBase(MSGraphBase):
     def path(self):
         pinfo = self.attr('parentReference')
         if 'path' in pinfo:
-            return pinfo['path'].replace('/drive/root:', '/')
+            return remove_root(pinfo['path'])
 
         return None
     
@@ -75,7 +78,7 @@ class MSDriveBase(MSGraphBase):
     
     def loc(self):
         info = self.infoById(self.msid, fields=['parentReference', 'name'])
-        path = info['parentReference']['path'].replace('/drive/root:', '/')
+        path = remove_root(info['parentReference']['path'])
         return os.path.join(path, info['name'])
 
     def getViewUrl(self):
@@ -226,6 +229,9 @@ class MSContainer(MSDriveItem):
             #TODO add more
         
         info = self.get(endpoint=endpoint, props=params)
+        if 'value' not in info:
+            return []
+
         contents = info['value']
         if 'name' in query and '*' not in query['name']:
             p = get_patterm(query['name'])

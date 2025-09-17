@@ -273,7 +273,12 @@ class MSGraphBase(Base):
 
         try:
             self.debugDict(result.json(), indent=3)
-            return result.json()
+            j = result.json()
+            if 'error' in j:
+                self.errorMsg(j['error']['message'])
+                return {}
+
+            return j 
         except:
             pass
 
@@ -297,7 +302,12 @@ class MSGraphBase(Base):
 
         try:
             self.debugDict(result.json(), indent=3)
-            return result.json()
+            j = result.json()
+            if 'error' in j:
+                self.errorMsg(j['error']['message'])
+                return {}
+
+            return j 
         except:
             pass
         
@@ -320,7 +330,12 @@ class MSGraphBase(Base):
 
         try:
             self.debugDict(result.json(), indent=3)
-            return result.json()
+            j = result.json()
+            if 'error' in j:
+                self.errorMsg(j['error']['message'])
+                return {}
+
+            return j 
         except:
             pass
 
@@ -351,7 +366,12 @@ class MSGraphBase(Base):
 
         try:
             self.debugDict(result.json(), indent=3)
-            return result.json()
+            j = result.json()
+            if 'error' in j:
+                self.errorMsg(j['error']['message'])
+                return {}
+
+            return j 
         except:
             pass
 

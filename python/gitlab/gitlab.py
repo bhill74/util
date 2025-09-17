@@ -11,6 +11,7 @@ import logging
 import urllib.parse
 import re
 import time
+import base64
 from inspect import isfunction
 
 # External modules
@@ -229,7 +230,8 @@ class Base:
         if "token" not in headers:
             headers['PRIVATE-TOKEN'] = token
 
-        return requests.post(url, headers=headers, data=data)
+        print("HEADERS", headers)
+        return requests.post(url, headers=headers, json=data)
 
     def delete(self, url, headers={}, token=None):
         if self.preview:
@@ -891,12 +893,18 @@ class Project(Base):
         """
         return Base.project(self, self.project, token=token)
 
+    def attr(self, name, info=None, token=None):
+        if not info:
+            info = Project.info(self, token=token)
+
+        return Base.attr(self, name, info=info, token=token)
+    
     def id(self, info=None, token=None):
         """
         Used to retrieve the id.
         """
         return self.attr('id', info=info, token=token)
-
+    
     def name(self, info=None, token=None):
         """
         Used to retrieve the name.
@@ -1755,7 +1763,55 @@ class Repositories(Project):
         names.sort()
         return names
 
+class Repository(Project):
+    """
+    A class for interfacing with the GitLab Repository
+    """
+    def __init__(self, project, branch=None, domain=None, preview=0):
+        self._branch = branch
+        super().__init__(project, domain, preview)
 
+    def __rep__(self):
+        return '<Repository on {}>'.format(Project.name(self))
+    
+    def __str__(self):
+        return self.__rep__()
+    
+    def _repository_api(self):
+        return Project._project_api(self)  + "/repository"
+
+    def info(self, info=None, token=None):
+        return Base.get(self, Project._repository_api(self))
+                            
+    def branch(self, branch=None):
+        if not branch:
+            self._branch = branch
+        if not self._branch:
+            info = Project.info(self)
+            self._branch = info['default_branch']
+
+        return self._branch
+
+    def file(self, name):
+        return File(self.project, name, branch=self.branch(), domsin=self.domain, preview=self.preview)
+
+    def commit(self, files, message=None):
+        url = self._repository_api() + "/commits"
+        data = {'branch': self.branch(),
+                'commit_message': message if message else "Modified files",
+                'actions': []}
+        for f in files:
+            action = {'action': 'update' if f.exists() else 'create',
+                      'file_path': f.fullPath(),
+                      'content': f.content64(),
+                      'encoding': 'base64'}
+            data['actions'] += [action]
+        print(json.dumps(data, indent=4))
+        r = Base.post(self, url, data=data)
+        print(r)
+        print(r.text)
+            
+                            
 class MergeRequests(Project):
     """
     A class for interfacing with the GitLab Merge Requests.
@@ -1849,3 +1905,79 @@ class MergeRequest(Project):
         Returns the reviewers of the Merge Request.
         """
         return self._users_attr('reviewers', info=info, token=token)
+
+
+class File(Repository):
+    """
+    A class for interfacing wtih the files in a GitLab repository
+
+    Arguments
+    """
+    def __init__(self, project, name, path=None, branch=None, domain=None, preview=None):
+        super().__init__(project, branch, domain, preview)
+        if not path:
+            paths = os.path.split(name)
+            path = os.path.sep.join(paths[0:-2])
+            name = paths[-1]
+        self._name = name
+        self.path = path if path else ''
+        
+        try:
+            with open(self.fullPath()) as f:
+                self._content = f.read()
+        except:
+            pass
+
+    def __rep__(self):
+        return '<File {} on \'{}\' branch {}>'.format(self.fullPath(), Project.name(self), self.branch())
+
+    def __str__(self):
+        return self.__rep__()
+        
+    def fullPath(self):
+        return os.path.join(self.path if self.path else '', self._name)
+
+    def name(self, name=None):
+        if name:
+            self._name = name
+        return self._name
+    
+    def content(self, body=None):
+        if body:
+            self._content = body
+        return self._content
+
+    def content64(self, body=None):
+        content = self.content(body)
+        return base64.b64encode(content.encode('utf-8')).decode('utf-8')
+    
+    def _files_api(self):
+        return self._repository_api() + '/files'
+
+    def _self_api(self):
+        return self._files_api() + '/' + self.fullPath()
+    
+    def exists(self):
+        url = self._self_api()
+        result = Base.get(self, url, data={'ref': self.branch()})
+        return True if result.status_code == 200 else False
+
+    def repository(self):
+        return Repository(self.project, self._branch, self.domain, self.preview)
+    
+    def commit(self, message=None):
+        """
+        Commit the file to the repo
+        """
+        url = self._self_api()
+        data = { 'branch': self.branch(),
+                 'commit_message': message if message else 'Updated {}'.format(self._name),
+                 'content': self.content() }
+        r = Base.put(self, url, data=data) if self.exists() else Base.post(self, url, data=data)
+        try:
+            return r.json()
+        except:
+            pass
+
+        return None
+        
