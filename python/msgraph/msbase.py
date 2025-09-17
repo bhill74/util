@@ -284,7 +284,7 @@ class MSGraphBase(Base):
 
         return {}
 
-    def post(self, endpoint='', data={}):
+    def post(self, endpoint='', data={}, quiet=False):
         self.debugMsg("POST")
         
         args = self._args(endpoint=endpoint)
@@ -304,7 +304,8 @@ class MSGraphBase(Base):
             self.debugDict(result.json(), indent=3)
             j = result.json()
             if 'error' in j:
-                self.errorMsg(j['error']['message'])
+                if not quiet:
+                    self.errorMsg(j['error']['message'])
                 return {}
 
             return j 

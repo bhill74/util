@@ -173,24 +173,34 @@ class MSContainer(MSDriveItem):
         return MSDrive.activeSearch(self, resolveQ(param, None))   
     
     def createFolder(self, name):
-        body = { 'name': name, 'folder': {} }
-        result = self.post(self._children_endpoint(), data=body)
-        if 'id' in result:
-           return self.toFolder({'id': result['id'], 'name': name})
+        container = self
+        if '/' in name:
+            names = os.path.split(name)
+            for n in names[:-1]:
+                if n == '':
+                    break
+                container = container.createFolder(n)
 
-        id = self.id()
-        items = self.get(self.endpoint() +'/search(q=\'{}\')'.format(name))
+            name = names[-1]
+            
+        body = { 'name': name, 'folder': {} }
+        result = container.post(container._children_endpoint(), data=body, quiet=True)
+        if 'id' in result:
+           return container.toFolder({'id': result['id'], 'name': name})
+
+        id = container.id()
+        items = container.get(container.endpoint() +'/search(q=\'{}\')'.format(name))
         for v in items['value']:
             if 'folder' not in v:
                 continue
-            
+
             if v['name'] != name:
                 continue
 
             if v['parentReference']['id'] != id:
                 continue
 
-            return self.toFolder(v)
+            return container.toFolder(v)
                  
     def list(self):
         info = self.get(endpoint=self._children_endpoint())
@@ -374,4 +384,7 @@ class MSRootFolder(MSContainer):
 
     def endpoint(self):
         return MSDriveBase.endpoint(self) + '/root'
+
+    def __rep__(self):
+        return '<MSRootFolder on {}>'.format(self.driveId)
 
