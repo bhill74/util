@@ -184,7 +184,7 @@ class MSContainer(MSDriveItem):
             name = names[-1]
             
         body = { 'name': name, 'folder': {} }
-        result = container.post(container._children_endpoint(), data=body, quiet=True)
+        result = container.post(container._children_endpoint(), data=body, quiet=True, allowed_codes=['nameAlreadyExists'])
         if 'id' in result:
            return container.toFolder({'id': result['id'], 'name': name})
 

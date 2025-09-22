@@ -42,7 +42,7 @@ class Base:
             self.debugMsg(k, v, indent=indent)
         
     def errorMsg(self, msg=""):
-        sys.stderr.write(msg +"\n")
+        sys.stderr.write("Error: " + msg +"\n")
               
 class PlaintextFilePersistence(Base):
     def __init__(self, file_path):
@@ -250,8 +250,43 @@ class MSGraphBase(Base):
         
         return {'headers': {'Authorization': 'Bearer ' + self.token() },
                 'url': url}
+
+    def _loop_request(self, request_func, allowed_codes=[]):
+        count = 0
+        while count < _HTTP_LIMIT:
+            count += 1
+            self.debugMsg("Attempt {}".format(count))
+            result = request_func()
+            self.debugMsg('Response Code', result.status_code)
+            if int(result.status_code/200) == 1:
+                break
+
+            if int(result.status_code/400) == 1:
+                try:
+                    j = result.json()
+                    if 'error' in j:
+                        if j['error']['code'] in allowed_codes:
+                            return {}
+                except:
+                    pass
+                        
+        j = result.json
+        try:
+            self.debugDict(result.json(), indent=3)
+            j = result.json()
+            if 'error' in j:
+                self.errorMsg(j['error']['message'])
+                print("Code: {}".format(result.status_code))
+                print("  info", j)
+                return {}
+
+            return j 
+        except:
+            pass
+
+        return {}
     
-    def get(self, endpoint='', props=None):
+    def get(self, endpoint='', props=None, allowed_codes=[]):
         self.debugMsg("GET");
         
         args = self._args(endpoint=endpoint)
@@ -262,87 +297,35 @@ class MSGraphBase(Base):
                 args['url'] += f"{k}=" + urllib.parse.quote_plus(v) + '&'
 
         self.debugDict(args)
-        count = 0
-        while count < _HTTP_LIMIT:
-            count += 1
-            self.debugMsg("Attempt {}".format(count))
-            result = requests.get(**args)
-            self.debugMsg('Response Code', result.status_code)
-            if int(result.status_code/200) == 1:
-                break;
+        def get_func():
+            return requests.get(**args)
+        
+        return self._loop_request(get_func, allowed_codes=allowed_codes)
 
-        try:
-            self.debugDict(result.json(), indent=3)
-            j = result.json()
-            if 'error' in j:
-                self.errorMsg(j['error']['message'])
-                return {}
-
-            return j 
-        except:
-            pass
-
-        return {}
-
-    def post(self, endpoint='', data={}, quiet=False):
+    def post(self, endpoint='', data={}, allowed_codes=[], quiet=False):
         self.debugMsg("POST")
         
         args = self._args(endpoint=endpoint)
         args['json'] = data
         
         self.debugDict(args)
-        count = 0
-        while count < _HTTP_LIMIT:
-            count += 1
-            self.debugMsg("Attempt {}".format(count))
-            result = requests.post(**args)
-            self.debugMsg('Response Code', result.status_code)
-            if int(result.status_code/200) == 1:
-                break;
-
-        try:
-            self.debugDict(result.json(), indent=3)
-            j = result.json()
-            if 'error' in j:
-                if not quiet:
-                    self.errorMsg(j['error']['message'])
-                return {}
-
-            return j 
-        except:
-            pass
+        def post_func():
+            return requests.post(**args)
         
-        return {}
+        return self._loop_request(post_func, allowed_codes=allowed_codes)
     
-    def put(self, endpoint='', payload=None):
+    def put(self, endpoint='', payload=None, allowed_codes=[]):
         self.debugMsg("PUT")
         args = self._args(endpoint=endpoint)
         args['data'] = payload
 
         self.debugDict(args)
-        count = 0
-        while count < _HTTP_LIMIT:
-            count += 1
-            self.debugMsg("Attempt {}".format(count))
-            result = requests.put(**args)
-            self.debugMsg('Response Code', result.status_code)
-            if int(result.status_code/200) == 1:
-                break
+        def put_func():
+            return requests.put(**args)
+        
+        return self._loop_request(put_func, allowed_codes=allowed_codes)
 
-        try:
-            self.debugDict(result.json(), indent=3)
-            j = result.json()
-            if 'error' in j:
-                self.errorMsg(j['error']['message'])
-                return {}
-
-            return j 
-        except:
-            pass
-
-        return {}
-
-    def patch(self, endpoint='', data=None, json=None):
+    def patch(self, endpoint='', data=None, json=None, allowed_codes=[]):
         self.debugMsg("PATCH")
         args = self._args(endpoint=endpoint)
 
@@ -356,27 +339,10 @@ class MSGraphBase(Base):
             args['headers']['Content-Type'] = 'application/json'
 
         self.debugDict(args)
-        count = 0
-        while count < _HTTP_LIMIT:
-            count += 1
-            self.debugMsg("Attempt {}".format(count))
-            result = requests.patch(**args)
-            self.debugMsg('Response Code', result.status_code)
-            if int(result.status_code/200) == 1:
-                break
-
-        try:
-            self.debugDict(result.json(), indent=3)
-            j = result.json()
-            if 'error' in j:
-                self.errorMsg(j['error']['message'])
-                return {}
-
-            return j 
-        except:
-            pass
-
-        return {}
+        def patch_func():
+            return requests.patch(**args)
+        
+        return self._loop_request(patch_func, allowed_codes=allowed_codes)        
 
 class MSServicePrincipals(MSGraphBase):
     def __init__(self, application, credentials=None, debug=None):
