@@ -6,6 +6,7 @@ import json
 import atexit
 import urllib.parse
 import pathlib
+import time
 
 # External modules
 sys.path.append(os.path.join(os.getenv("HOME"), 'lib', 'ext'))
@@ -261,6 +262,18 @@ class MSGraphBase(Base):
             if int(result.status_code/200) == 1:
                 break
 
+            # If the request is simply overloaded then wait the suggested time.
+            if result.status_code == 429:
+                headers = result.headers
+                try:
+                    delay = headers['Retry-After']
+                    time.sleep(int(delay)/3)
+                    count -= 1
+                    continue
+                except Exception as e:
+                    print("E", e)
+                    pass
+            
             if int(result.status_code/400) == 1:
                 try:
                     j = result.json()

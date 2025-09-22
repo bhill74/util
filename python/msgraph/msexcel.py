@@ -399,7 +399,14 @@ class MSSpreadsheet(MSExcelItem):
 
     def _sheets(self):
         def get_sheets():
-            return self.get(MSWorkbook.endpoint(self))['value']
+            i = self.get(MSWorkbook.endpoint(self))
+            try:
+                return i['value']
+            except:
+                pass
+
+            return None
+
         return self.get_cache('sheets', get_sheets)
 
     def sheetNames(self):
