@@ -307,7 +307,21 @@ def shift_cell(crange, column_offset=0, row_offset=0):
     c = index_to_column(ci)
     return cell_range("{}{}".format(c, r), sheet=sh)
 
+def quote_id_or_name(id=None, name=None):
+    if not id and not name:
+         return ''
+
+    if id:
+         if id.startswith('{'):
+            id = id[1:]
+         if id.endswith('}'):
+            id = id[:-1]
+
+         return f'(\'{id}\')'
+
+    return f'(\'{name}\')'
         
+
 class MSExcelItem(MSFile):
     def __init__(self, application, msid=None, path=None, driveId=None, credentials=None, debug=False, info=None):
         MSFile.__init__(self, application, msid=msid, path=path, driveId=driveId, credentials=credentials, debug=debug)
@@ -412,6 +426,41 @@ class MSSpreadsheet(MSExcelItem):
     def sheetNames(self):
         return [s['name'] for s in self._sheets()]
 
+    def addTable(self, address):
+        start, end, same = range_decomp(address)
+        sheetName, row, col = cell_decomp(start)
+        start = row + str(col+1) 
+        address = cell_range(start, end) 
+
+        data = {'address':address, 'hasHeaders': True}
+
+        result = self.post(MSTable.endpoint(self, sheet=sheetName) + '/add', data=data)
+        table = MSTable(self.application, self.msid, label=sheetName, info=result, driveId=self.driveId, credentials=self.credentials, debug=self.debug)
+        self.clear_cache('tables' + sheetName)
+
+        return table
+
+    def _tables(self, sheet=None):
+        def get_tables():
+            i = self.get(MSTable.endpoint(self, sheet=sheet))
+            try:
+                return i['value']
+            except:
+                pass
+
+            return None
+
+        return self.get_cache('tables' + (sheet if sheet else ''), get_tables)     
+
+    def tableNames(self, sheet=None):
+        return [s['name'] for s in self._tables(sheet=sheet)]
+
+    def getTable(self, id=None, name=None):
+        if not id and not name:
+            return None
+
+        return MSTable(self.application, self.msid, tableId=id, name=name, driveId=self.driveId, credentials=self.credentials, debug=self.debug)
+
     def _range_url(self, info):
         return MSWorksheet.endpoint(self, label=info['sheetName'])+'/range(address=\'{}\')'.format(info['range'])
 
@@ -459,7 +508,7 @@ class MSSpreadsheet(MSExcelItem):
         info = self.getRangeInfo(rangeName, get_limit)
         self.post(self._range_url(info)+'/format/autofitColumns')
         return None
-    
+   
     def update(self, values, rangeName="A1", input_option="RAW", quiet=False):
         if input_option == 'USER_ENTERED':
             values = translate_cell_info(rangeName, values)
@@ -484,9 +533,27 @@ class MSSpreadsheet(MSExcelItem):
                 rangeName = cell_range(rangeName, sheet=info['sheetName'])
 
             info = self.getRangeInfo(rangeName)
-        
+    
+        data = {'values': values }
+        formulas = []
+        modified = False
+        for i in range(len(values)):
+            formulas.append([])
+            row = values[i]
+            for j in range(len(row)):
+                if values[i][j].startswith('='):
+                    formulas[-1].append(values[i][j])
+                    values[i][j] = None
+                    modified = True
+                else:
+                    formulas[-1].append(None)
+      
+    
+        if modified:
+            data['formulas'] = formulas
+
         try:
-            self.patch(self._range_url(info), json={'values':values})
+            self.patch(self._range_url(info), json=data)
         except Exception as e:
             if quiet:
                 return False, [], 
@@ -577,42 +644,141 @@ class MSWorkbook(MSExcelItem):
         
 class MSWorksheet(MSExcelItem):
     def __init__(self, application, msid, label=None, sheetId=None, driveId=None, credentials=None, debug=None, info=None):
-        self.label = label
-        self.sheetId = sheetId
+        self._sheet_label = label
+        self._sheed_id = sheetId
 
         MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug, info=info)
 
     def endpoint(self, id=None, label=None):
         if not id:
             try:
-                id = self.sheetId
+                id = self._sheed_id
             except:
                 pass
 
         if not label:
             try:
-                label = self.label
+                label = self._sheet_label
             except:
                 pass
 
-        return MSWorkbook.endpoint(self) + ('(\'{}\')'.format(id) if id is not None else '(\'{}\')'.format(label))
+        return MSWorkbook.endpoint(self) + quote_id_or_name(id=id, name=label)
         
     def label(self):
-        if not self.label:
-            self.label = MSSpreadsheet.getSheetLabel(self, self.sheetId)
+        if not self._sheet_label:
+            self._sheet_label = MSSpreadsheet.getSheetLabel(self, self._sheed_id)
 
-        return self.label
+        return self._sheet_label
 
     def sheetId(sef):
-        if not self.sheetId:
-            self.sheetId = MSSpreadsheet.getSheetIndex(self, self.label)
+        if not self._sheed_id:
+            self._sheed_id = MSSpreadsheet.getSheetIndex(self, self._sheet_label)
 
-        return self.sheetId
+        return self._sheed_id
         
     def setLabel(self, label):
         self.patch(json={'name':label})
-        self.label = label
+        self._sheet_label = label
         self.clear_cache('sheets')
         
     def __rep__(self):
         return "<MSWorksheet &&>"
+
+class MSTable(MSExcelItem):
+    def __init__(self, application, msid, label=None, sheetId=None, name=None, tableId=None, driveId=None, credentials=None, debug=None, info=None):
+        self._sheet_label = label
+        self._sheed_id = sheetId
+        self._table_name = info['name'] if info and 'name' in info else name
+        self._table_id = info['id'] if info and 'id' in info else tableId 
+
+        print("NAME", self._table_name, self._table_id)
+
+        MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug, info=info)
+
+    def endpoint(self, id=None, name=None, sheet=None, useId=True, useName=True):
+        if not sheet:
+            try:
+                sheet = self._sheet_label
+            except:
+                pass
+ 
+        base = MSWorksheet.endpoint(self, label=sheet) if sheet else MSSpreadsheet.endpoint(self) + '/workbook'
+        base += '/tables'
+
+        if not id:
+            try:
+                id = self._table_id
+            except:
+                pass
+
+        if not name:
+            try:
+                name = self._table_name
+            except:
+                pass
+
+        base += quote_id_or_name(id=(id if useId else None), name=(name if useName else None))
+        return base
+
+    def _range(self):
+        return self.get(self.endpoint(useId=False) + '/range')
+
+    def name(self):
+        if not self._table_name:
+            self._table_name = self.attr('name')
+
+        return self._table_name
+
+    def tableId(self):
+        if not self._table_id:
+            self._table_id = self.attr('id')
+
+        return self._table_id
+
+    def sheet(self):
+        if not self._sheet_label:
+            range = self.range()
+
+        return self._sheet_label
+
+    def range(self):
+        self.name()
+        # Note: dataBodyRange doesn't work using a lookup by ID (MSGraph bug)
+        result = self._range()
+        if result and 'address' in result:
+            address = result['address']
+            if not self._sheet_label:
+                self._sheet_label, _, _ = cell_decomp(address)
+            return address
+
+        return None
+
+    def rows(self):
+        result = self._range()
+        return int(result['rowCount']) if result and 'rowCount' in result else -1 
+
+    def columns(self):
+        result = self._range()
+        return int(result['columnCount']) if result and 'columnCount' in result else -1 
+
+    def insert(self, values):
+        print("V", values)
+        columns = self.columns()
+
+        for v in values:
+           while len(v) < columns:
+              v.append('')
+
+        print("V", values)
+        data = {'values': values}
+        result = self.post(self.endpoint(useId=False) + '/rows', data=data)
+        print(result)
+
+    def setName(self, name):
+        name = name.replace('-', '_')
+        self.patch(json={'name':name})
+        self.name = name
+        self.clear_cache('tables' + (self._sheet_label if self._sheet_label else ''))
+
+    def __rep__(self):
+        return "<MSTable &&>" 
