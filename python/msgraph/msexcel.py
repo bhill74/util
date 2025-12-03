@@ -253,7 +253,7 @@ def translate_cell_info(crange, data):
             if not isinstance(row[c], str):
                 continue
 
-            if not row[c].startswith('='):
+            if not isinstance(row[c], str) or not row[c].startswith('='):
                 continue
 
             def translate(match):
@@ -311,7 +311,7 @@ def quote_id_or_name(id=None, name=None):
     if not id and not name:
          return ''
 
-    if id:
+    if id and isinstance(id, str):
          if id.startswith('{'):
             id = id[1:]
          if id.endswith('}'):
@@ -337,8 +337,6 @@ class MSSpreadsheet(MSExcelItem):
         MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug)
         if name:
             self._name = name
-
-
             
     def init(self, name=None, path='', folder=None, sheetName='Sheet1', rows=200, columns=20, colour=None):
         if self.msid is not None:
@@ -541,7 +539,8 @@ class MSSpreadsheet(MSExcelItem):
             formulas.append([])
             row = values[i]
             for j in range(len(row)):
-                if values[i][j].startswith('='):
+                val = values[i][j]
+                if isinstance(val, str) and val.startswith('='):
                     formulas[-1].append(values[i][j])
                     values[i][j] = None
                     modified = True
@@ -690,8 +689,6 @@ class MSTable(MSExcelItem):
         self._sheed_id = sheetId
         self._table_name = info['name'] if info and 'name' in info else name
         self._table_id = info['id'] if info and 'id' in info else tableId 
-
-        print("NAME", self._table_name, self._table_id)
 
         MSExcelItem.__init__(self, application=application, msid=msid, driveId=driveId, credentials=credentials, debug=debug, info=info)
 
